@@ -2,3 +2,4 @@ Step	Stage	Date
 01	preprocessing (spike band) complete (all 8 animals) 3/17/2026 5:55pm
 02	spike sorting complete (all 8 animals)	3/13/2026 2:06pm
 03	summarize preliminary phy units complete (all 8 animals)	3/18/2026 3:33pm
+04a	manually curate units based on clustering (7 animals, all except for AK025)	3/19/2026 12:42pm
