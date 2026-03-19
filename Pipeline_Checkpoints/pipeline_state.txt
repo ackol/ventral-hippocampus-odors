@@ -3,3 +3,4 @@ Step	Stage	Date
 02	spike sorting complete (all 8 animals)	3/13/2026 2:06pm
 03	summarize preliminary phy units complete (all 8 animals)	3/18/2026 3:33pm
 04a	manually curate units based on clustering (7 animals, all except for AK025)	3/19/2026 12:42pm
+04b	manually curate units based on clustering (1 animal, AK025) (*note: commit timestamp for updated submodule post-dates the timestamp of data processing, because data processing was carried out locally in local Lab GitHub Repo folder prior to creating a pull request to main and then updating the submodule in ventral-hippocampus-odors repo). 	3/19/2026 completed 1:24pm code that was used is saved in this repo around 2:13pm but is the same version that was used to process this file
