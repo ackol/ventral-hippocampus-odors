@@ -7,3 +7,5 @@ Step	Stage	Date
 05	generate curated unit summary figures (all 8 animals)	3/20/2026 5:44pm
 06	enforce quality metrics (all 8 animals)	3/20/2026 10:25pm
 07	generate final unit summary figures (all 8 animals)	3/20/2026 10:49pm
+08	extract behavior data (all 8 animals)	3/23/2026 10:58am
+09	process behavior data (all 8 animals)	3/23/2026 11:12am
