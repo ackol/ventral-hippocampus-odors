@@ -1,3 +1,6 @@
 [submodule "NCCLAB"]
 	path = NCCLAB
 	url = https://github.com/krishnanURMC/NCCLAB
+[submodule "external-library-allenCCF"]
+	path = external-library-allenCCF
+	url = https://github.com/ackol/external-library-allenCCF
