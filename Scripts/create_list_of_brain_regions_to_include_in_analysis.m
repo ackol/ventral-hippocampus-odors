@@ -25,17 +25,20 @@
 % Padmanabhan Lab, University of Rochester School of Medicine
 % PI contact email: krishnan_padmanabhan@urmc.rochester.edu
 % Script first created: March 24, 2026 (Version 1.0)
-% Script last updated: March 24, 2026
-% Version 1.0.
+% Script last updated: March 28, 2026
+% Version 1.1.
+
+clear all
+clc
 
 % USER INPUT (1): Manually specify the brain region names in-line
-brainRegions(2,:) = {"dorsal CA1", "intermediate CA1", "ventral CA1", "CA2", ...
+brainRegions(2,:) = {"undefined","dorsal CA1", "intermediate CA1", "ventral CA1", "CA2", ...
     "CA3","dentate gyrus","basolateral amygdalar nucleus, posterior part",...
     "endopiriform nucleus, ventral part","postpiriform transition area",...
-    "subiculum", "primary visual area, layer 1"};
-nRegions = length(brainRegions);
-brainRegions(3,:) = {"dCA1", "iCA1", "vCA1", "CA2", "CA3","DG","BLAp","EPv","TR","SUB","V1"};
-brainRegions(1,:) = num2cell(1:1:nRegions);
+    "subiculum", "prosubiculum","primary visual area, layer 1","intermediate CA3","ventral CA3","dorsal CA3"};
+nRegions = length(brainRegions)-1;
+brainRegions(3,:) = {"U","dCA1", "iCA1", "vCA1", "CA2", "CA3","DG","BLAp","EPv","TR","SUB","ProS","V1","iCA3","vCA3","dCA3"};
+brainRegions(1,:) = num2cell(0:1:nRegions);
 
 % Save to a data structure for future use
 % USER INPUT (2): Use UI to select directory in which to save file
