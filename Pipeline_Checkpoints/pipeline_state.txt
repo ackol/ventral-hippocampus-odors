@@ -9,3 +9,4 @@ Step	Stage	Date
 07	generate final unit summary figures (all 8 animals)	3/20/2026 10:49pm
 08	extract behavior data (all 8 animals)	3/23/2026 10:58am
 09	process behavior data (all 8 animals)	3/23/2026 11:12am
+10	add anatomical labels to quality units to generate aligned_phy_unit_data (all 8 animals)	3/31/2026 3:58pm
