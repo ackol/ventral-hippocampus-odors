@@ -1,0 +1,200 @@
+% compare_spike_counts_before_vs_during_by_WSR.m - This 
+% script saves ... 
+%
+%   Inputs:
+%       USER MUST SPECIFY VIA UI:
+%       (1) mouseID
+%       (2) base directory
+%       (3) [AK0xx]_spikes_grouped_by_odor_trial.mat
+%       (4) output path for data structures
+%
+%   Outputs:
+%       (1) [AK0xx]_sortedspikes_curated_medianchangeinrate.mat
+%       (2) [AK0xx]_sortedspikes_curated_WSRtestresults.mat
+%       (3) [AK0xx]_sortedspikes_curated_WSRtestresults_significant_alpha[#].mat
+%
+%   Dependencies: none
+%
+% Designed by Anna C. Kolstad
+% Author contact email: anna_kolstad@urmc.rochester.edu
+% Padmanabhan Lab, University of Rochester School of Medicine
+% PI contact email: krishnan_padmanabhan@urmc.rochester.edu
+% Script first created: September 13, 2024 (originally part of 
+% align_sorted_spikes_to_odor_delivery.m from Versions 1.0-4.0)
+% Script last updated: March 31, 2026
+% Version 5.0.
+
+%% PART ONE: Load data and get parameters
+
+clear all
+clc
+
+% Manually specify Mouse ID
+mouseLabel = inputdlg('Enter animal ID','User input');
+
+% select base directory from which to navigate
+baseDir = uigetdir('',"Select base directory for this animal.");
+
+% load spikes_grouped_by_odor_trial.mat variable file
+[file, path] = uigetfile(".mat","Select [AK0xx]_spikes_grouped_by_odor_trial.mat file for " + mouseLabel + ".",baseDir);
+tic
+disp("Loading spikes grouped by odor trial data structure...")
+load(fullfile(path,file),"spikeRaster","mouseLabel","timeBefore","timeDuring","timeAfter","sampFreq","nUnits","unitInfo","nOdors","nTrialsPerOdor","odorIdentities"); % note: took <3 mins
+pointsBefore = timeBefore*sampFreq; 
+pointsDuring = timeDuring*sampFreq;
+pointsAfter = timeAfter*sampFreq;
+toc
+
+% select path for output figures
+baseOutputPath = uigetdir(baseDir,"Select base directory in which to save outputs.");
+savedirStatisticalTests = baseOutputPath + "\" + "8 - statistical tests";
+% make new folder if it does not already exist
+if ~exist(savedirStatisticalTests,'dir')
+    mkdir(savedirStatisticalTests);
+end
+
+%% PART TWO: Compute spike counts before and during odor delivery
+
+disp("Computing spike counts before and during odor delivery.")
+tic
+
+% Preallocate memory for new data structure
+beforeCount = nan(nOdors, nTrialsPerOdor, nUnits); % Create empty 3D matrix for storing total count of spikes per trial, grouped by odorant identity
+duringCount = nan(nOdors, nTrialsPerOdor, nUnits); % Create empty 3D matrix for storing total count of spikes per trial, grouped by odorant identity
+
+startIndex = pointsBefore-pointsDuring; % start counting spikes from 2 seconds in to trial, 
+onsetIndex = startIndex + pointsDuring;
+endIndex = onsetIndex + pointsDuring;
+
+for iUnit = 1:nUnits
+    disp("Processing unit #" + num2str(iUnit))
+    for iOdorant = 1:nOdors
+        for iTrial = 1:nTrialsPerOdor
+            beforeCount(iOdorant, iTrial, iUnit) = sum(spikeRaster(iOdorant,iTrial,iUnit,startIndex:(onsetIndex-1)));
+            duringCount(iOdorant, iTrial, iUnit) = sum(spikeRaster(iOdorant,iTrial,iUnit,onsetIndex:endIndex));
+        end
+    end
+end
+toc
+
+disp("Finished computing before and during spike counts. PART TWO complete.")
+
+%% PART THREE: Get median change in rate (during vs. before) for all unit-odorant pairs
+
+rateDiff = (duringCount - beforeCount)./timeDuring; % spikes / sec
+medianRateDiff = median(rateDiff,2); % # rows = # odorants; # columns = # trials; # z-stack = # units
+medianChangeInRate = squeeze(medianRateDiff)'; % spikes / sec
+
+save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_medianchangeinrate", "medianChangeInRate",'-v7.3');
+
+disp("Finished computing and saving median change in firing rate for ..." + ...
+    "all unit-odorant pairs. PART THREE complete.")
+
+%% PART THREE: Run statistical analysis
+
+wilcoxanSignedRankTestPValues = nan(nUnits,nOdors);
+
+tic
+for iUnit = 1:nUnits
+
+    disp("-----Processing unit #" + num2str(iUnit) + "-----")
+    thisContactNum = unitInfo.("UNIT" + num2str(iUnit, "%.3d")).info.contactNumb;  %getContactNumber(iUnit);
+    thisAnatomicalRegion = unitInfo.("UNIT" + num2str(iUnit, "%.3d")).info.anatomicAbbrev;
+
+    for iOdorant = 1:nOdors
+        beforeCountThisOdorant = nan(1,nTrialsPerOdor);
+        duringCountThisOdorant = nan(1,nTrialsPerOdor);
+
+        for iTrial = 1:nTrialsPerOdor
+            beforeCountThisOdorant(1,iTrial) = beforeCount(iOdorant, iTrial, iUnit);
+            duringCountThisOdorant(1,iTrial) = duringCount(iOdorant, iTrial, iUnit);
+        end
+        
+        % Perform statistical test to evaluate this unit's response to
+        % this odorant
+        wilcoxanSignedRankTestPValues(iUnit,iOdorant) = signrank(beforeCountThisOdorant, duringCountThisOdorant);   
+    end
+end
+
+disp("Finished calculating Wilcoxan Signed Rank for each odor-unit pair. PART THREE complete.")
+
+%% PART FOUR: Get Unit-Odor combos with p-values > alpha
+
+clear alpha temp units odors
+
+alpha = 0.05;
+
+% Wilcoxan Signed Rank Test
+temp = wilcoxanSignedRankTestPValues < alpha;
+[units, odors] = find(temp==1);
+
+wsrTestSignificant = table(units, odorIdentities(odors)',wilcoxanSignedRankTestPValues(sub2ind(size(wilcoxanSignedRankTestPValues),units,odors)));
+wsrTestSignificant.Properties.VariableNames = ["Unit #","Odorant","p-value"];
+wsrTestSignificant = sortrows(wsrTestSignificant);
+
+% % Sign Test
+% temp = signTestPValues < alpha;
+% [units, odors] = find(temp==1);
+% 
+% signTestSignificant = table(units, odorIdentities(odors)',signTestPValues(sub2ind(size(signTestPValues),units,odors)));
+% signTestSignificant.Properties.VariableNames = ["Unit #","Odorant","p-value"];
+% signTestSignificant = sortrows(signTestSignificant);
+
+disp("Finished selecting odor-unit pairs that are significant by Wilcoxan Signed Rank test (no correction for FWE). PART FOUR complete.")
+
+%% PART FIVE: Get modulation direction for each significant unit-odorant pair
+
+for iPair = 1:height(wsrTestSignificant)
+    unit = wsrTestSignificant.("Unit #")(iPair);
+    odorant = find(string(odorIdentities)==wsrTestSignificant.Odorant{iPair});
+
+    if medianRateDiff(odorant,:,unit) > 0
+        wsrTestSignificant.Direction(iPair) = "increase"; % odorant delivery results in increase in spike rate
+    elseif medianRateDiff(odorant,:,unit) < 0
+        wsrTestSignificant.Direction(iPair) = "decrease"; % odorant delivery results in increase in spike rate
+    else
+        fprintf("There is an error. A significant unit (iPair = %d) has a median change of zero. \n",iPair)
+    end
+
+    wsrTestSignificant.medianChangeRate(iPair) = medianRateDiff(odorant,:,unit);
+   
+end
+
+disp("Finished determining modulation direction for all odor-unit pairs " + ...
+    "that are significant by Wilcoxan Signed Rank test (no correction for FWE)." + ...
+    " PART FIVE complete.")
+
+%% PART SIX: Add anatomical location for each significant unit-odor pair
+
+% For Wilcoxan Signed Rank test
+for iPair = 1:height(wsrTestSignificant)
+    unit = wsrTestSignificant.("Unit #")(iPair);
+    thisContactNum = unitInfo.("UNIT" + num2str(unit, "%.3d")).info.contactNumb;  %getContactNumber(iUnit);
+    thisAnatomicalLocation = unitInfo.("UNIT" + num2str(unit, "%.3d")).info.anatomicLocation;
+    thisAnatomicalAbbrev = unitInfo.("UNIT" + num2str(unit, "%.3d")).info.anatomicAbbrev;
+    wsrTestSignificant.("Anatomical Location")(iPair) = thisAnatomicalLocation;
+    wsrTestSignificant.("Anatomical Abbreviation")(iPair) = thisAnatomicalAbbrev;
+end
+
+% % For Sign Test
+% for iPair = 1:height(signTestSignificant)
+%     unit = signTestSignificant.("Unit #")(iPair);
+%     thisContactNum = unitInfo.("UNIT" + num2str(unit, "%.3d")).info.contactNumb;  %getContactNumber(iUnit);
+%     thisAnatomicalRegion = unitInfo.("UNIT" + num2str(unit, "%.3d")).info.anatomicAbbrev;
+%     signTestSignificant.("Anatomical Location")(iPair) = thisAnatomicalRegion;
+% end
+
+%% PART SEVEN: Export data
+
+disp("Saving statistical test p-values...")
+tic
+% Save p-values
+%save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_signtestresults", "signTestPValues","unitInfo",'-v7.3');
+save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_WSRtestresults", "wilcoxanSignedRankTestPValues","unitInfo",'-v7.3');
+% Save unit-odor pairs with significant p-values
+%save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_signtestresults_significant_alpha"+num2str(alpha*100), "signTestSignificant","alpha",'-v7.3');
+save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_WSRtestresults_significant_alpha"+num2str(alpha*100), "wsrTestSignificant","alpha",'-v7.3');
+toc
+disp("Done saving statistical test p-values.")
+
+disp("End of Script.")
