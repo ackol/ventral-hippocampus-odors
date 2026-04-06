@@ -22,6 +22,7 @@ probeID = "NeuroNexusA4x16";
 % USER INPUT (1): inline assignment of contact region IDs
 % Note: the delineation between iCA1 and vCA1 here is not clear. I made a
 % guess.
+% Note on 4/1/26: The 5's (generic CA3) should be converted to 13 (iCA3)
 contactRegionIDs = [ ...
      2 2 2 2;
      2 2 2 2;

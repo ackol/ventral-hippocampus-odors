@@ -35,15 +35,8 @@ mouseLabel = inputdlg('Enter animal ID','User input');
 % select base directory from which to navigate
 baseDir = uigetdir('',"Select base directory for this animal.");
 
-% load spikes_grouped_by_odor_trial.mat variable file
+% select spikes_grouped_by_odor_trial.mat variable file
 [file, path] = uigetfile(".mat","Select [AK0xx]_spikes_grouped_by_odor_trial.mat file for " + mouseLabel + ".",baseDir);
-tic
-disp("Loading spikes grouped by odor trial data structure...")
-load(fullfile(path,file),"spikeRaster","mouseLabel","timeBefore","timeDuring","timeAfter","sampFreq","nUnits","unitInfo","nOdors","nTrialsPerOdor","odorIdentities"); % note: took <3 mins
-pointsBefore = timeBefore*sampFreq; 
-pointsDuring = timeDuring*sampFreq;
-pointsAfter = timeAfter*sampFreq;
-toc
 
 % select path for output figures
 baseOutputPath = uigetdir(baseDir,"Select base directory in which to save outputs.");
@@ -52,6 +45,15 @@ savedirStatisticalTests = baseOutputPath + "\" + "8 - statistical tests";
 if ~exist(savedirStatisticalTests,'dir')
     mkdir(savedirStatisticalTests);
 end
+
+% load spikes_grouped_by_odor_trial.mat variable file
+tic
+disp("Loading spikes grouped by odor trial data structure...")
+load(fullfile(path,file),"spikeRaster","mouseLabel","timeBefore","timeDuring","timeAfter","sampFreq","nUnits","unitInfo","nOdors","nTrialsPerOdor","odorIdentities"); % note: took <3 mins
+pointsBefore = timeBefore*sampFreq; 
+pointsDuring = timeDuring*sampFreq;
+pointsAfter = timeAfter*sampFreq;
+toc
 
 %% PART TWO: Compute spike counts before and during odor delivery
 
