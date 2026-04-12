@@ -10,3 +10,6 @@ Step	Stage	Date
 08	extract behavior data (all 8 animals)	3/23/2026 10:58am
 09	process behavior data (all 8 animals)	3/23/2026 11:12am
 10	add anatomical labels to quality units to generate aligned_phy_unit_data (all 8 animals)	3/31/2026 3:58pm
+11	align sorted spikes to odor delivery (all 8 animals)	4/1/2026 10:08am
+12	obtain Wilcoxan Signed Rank significant test results for odor tuning (all 8 animals)	4/1/2026 10:36am
+13	smooth running and spiking signals in tandem (all 8 animals)	4/12/2026 2:46pm

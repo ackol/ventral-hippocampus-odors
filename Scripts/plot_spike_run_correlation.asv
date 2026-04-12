@@ -135,7 +135,7 @@ bins = [start; start+speedBinWidth]';
 binMidpoints = (bins(:,1) + bins(:,2))./2;
 
 % Plot running-spiking relationship
-for iUnit = 1:nUnits
+for iUnit = 1:1%nUnits
     disp("Processing unit #" + iUnit + "/" + nUnits)
 
     smoothedSpikeRate = smoothedSpikeRateStruct.("UNIT" + num2str(iUnit, "%.3d")).continuousFiringRate;
