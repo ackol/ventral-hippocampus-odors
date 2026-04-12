@@ -93,7 +93,7 @@ disp("Completed PART ONE. Successfully loaded data.")
 disp("Starting PART TWO. Plotting speed-run plots.")
 
 wheelSpeed = abs(wheelVelocity);
-nUnits = numel(fieldnames(smoothedSpikeRateStruct)) - 1;
+nUnits = numel(fieldnames(smoothedSpikeRateStruct));
 
 % Get speed scores
 speedScores = table('Size',[nUnits 5], 'VariableTypes', {'int16','double','string','string','string'},'VariableNames',{'Unit #','Pearson correlation','Anatomical Location','Anatomical Abbreviation','Mouse'});
@@ -323,3 +323,5 @@ saveas(gcf, saveFigDir + "\" + mouseLabel + "_speed_score_histogram" + ".png")
 
 
 disp("Completed PART FIVE. Successfully saved null vs. observed histogram for this animal.")
+
+disp("End of script.")
