@@ -11,7 +11,7 @@
 % https://www.sciencedirect.com/science/article/pii/S2211124718316437?via%3Dihub#fig1
 %
 %   Inputs:
-%       USER MUST SPECIFY VIA UI:
+%       USER MUST SPECIFY VIA UI:regio
 %       (1) mouseID
 %       (2) base directory
 %       (3) [AK0xx]_smoothed_spike_rate_data.mat
@@ -114,7 +114,7 @@ for iUnit = 1:nUnits
 end
 
 % Save speed and spike data structures for future use
-saveObservedPath = saveDataDir + "\" + mouseLabel + "_" + sessionLabel + "_observed_speed_score_data";
+saveObservedPath = saveDataDir + "\" + mouseLabel + "_observed_speed_score_data";
 save(saveObservedPath, "speedScores", '-v7.3')
 
 disp("Completed PART TWO. Successfully saved speed score data structure.")
@@ -215,6 +215,11 @@ disp("Completed PART THREE. Successfully saved speed-run plots.")
 
 disp("Starting PART FOUR. Generating null distribution.")
 
+% This variable should be loaded from one of the input .mat files, but
+% apparently it was not saved therein. So I am manually specifying the
+% value that was used. 
+decimateFactor = 10;
+
 % Plot autocorrelation of speed to determine appropriate minimum time lag
 % for shuffling
 maxLagSec = 90; % seconds
@@ -293,7 +298,7 @@ toc
 
 % Save null data
 disp("Saving null speed score matrices...")
-saveNullPath = saveDataDir + "\" + mouseLabel + "_" + sessionLabel + "_null_speed_score_data";
+saveNullPath = saveDataDir + "\" + mouseLabel + "_null_speed_score_data";
 save(saveNullPath, "nullSpeedScores","nShuffles","minimumShiftSec", '-v7.3');
 
 disp("Completed PART FOUR. Successfully saved null distribution.")
@@ -309,6 +314,9 @@ lowerThreshold = prctile(nullSpeedScores(:),2.5);
 
 [nullCounts, edges] = histcounts(nullSpeedScores,'BinMethod','auto');
 
+% NOTE: This figure as written may cut off any edge observed units (since
+% the bounds of the x-axis are set based on the null histogram edges, which
+% does not take into account the observed data range).
 figure('Visible','off');
 histogram(nullSpeedScores,edges,'Normalization','probability')
 hold on

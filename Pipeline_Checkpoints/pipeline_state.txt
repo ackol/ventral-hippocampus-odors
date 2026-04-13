@@ -13,3 +13,4 @@ Step	Stage	Date
 11	align sorted spikes to odor delivery (all 8 animals)	4/1/2026 10:08am
 12	obtain Wilcoxan Signed Rank significant test results for odor tuning (all 8 animals)	4/1/2026 10:36am
 13	smooth running and spiking signals in tandem (all 8 animals)	4/12/2026 2:46pm
+14	compute and plot spike-speed correlations (all 8 animals)	4/12/2026 9:39pm

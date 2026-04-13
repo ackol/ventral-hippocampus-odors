@@ -252,7 +252,7 @@ toc
 
 %% END: Close log file
 
-disp('PROCESS RAW BEHAVIOR RIG DATA is complete.');
+disp('SMOOTH RUNNING AND SPIKING script is complete.');
 diary off
 
 %% ----------------------------------------------------------------
