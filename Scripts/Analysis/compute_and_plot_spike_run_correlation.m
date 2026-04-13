@@ -1,4 +1,4 @@
-% PLOT_SPIKE_RUN_CORRELATION.m - This script saves N png 
+% COMPUTE_AND_PLOT_SPIKE_RUN_CORRELATION.m - This script saves N png 
 % figures, where N is the number of units recorded for a given mouse. Each 
 % figure features subplots showing the running speed across the experiment, 
 % the spike rate across the experiment, the two z-scored and overlaid, and 
@@ -35,8 +35,10 @@
 % Padmanabhan Lab, University of Rochester School of Medicine
 % PI contact email: krishnan_padmanabhan@urmc.rochester.edu
 % Script first created: April 2, 2026 (by Anna C. Kolstad)
-% Script last updated: April 12, 2026 (by Anna C. Kolstad)
-% Version 2.0.
+% Script last updated: April 13, 2026 (by Anna C. Kolstad)
+% Note: Versions 1-2 of this script were titled
+% "plot_spike_run_correlation.m"
+% Version 3.0.
 
 %% PART ONE: Load data and get parameters
 clear vars
