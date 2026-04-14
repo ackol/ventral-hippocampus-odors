@@ -243,7 +243,7 @@ testedSpeedScores.FDRBH = FDRBH;
 testedSpeedScores.Classification = classificationVec;
 
 % Save testedSpeedScores data structure
-save(path + "\" + "testedSpeedScoreInfo", "testedSpeedScores","alpha",'-v7.3');
+save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_WSRtestresults", "wilcoxanSignedRankTestPValues","unitInfo",'-v7.3');
 
 
 %% Plot the fraction of CA1, CA3 and DG cells that are speed cells

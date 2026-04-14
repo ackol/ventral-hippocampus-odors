@@ -1,0 +1,306 @@
+% compare_locomotion_before_vs_during_odor_delivery.m - This 
+% script saves ... 
+%
+%   Inputs:
+%       USER MUST SPECIFY VIA UI:
+%       (1) mouseID
+%       (2) base directory
+%       (3) [AK0xx]_spikes_grouped_by_odor_trial.mat
+%       (4) output path for data structures
+%
+%   Outputs:
+%       (1) [AK0xx]_sortedspikes_curated_medianchangeinrate.mat
+%       (2) [AK0xx]_sortedspikes_curated_WSRtestresults.mat
+%       (3) [AK0xx]_sortedspikes_curated_WSRtestresults_significant_alpha[#].mat
+%
+%   Dependencies: none
+%
+% Designed by Anna C. Kolstad
+% Author contact email: anna_kolstad@urmc.rochester.edu
+% Padmanabhan Lab, University of Rochester School of Medicine
+% PI contact email: krishnan_padmanabhan@urmc.rochester.edu
+% Script first created: April 13, 2026
+% Script last updated: April 14, 2026 (by Anna C. Kolstad)
+% Version 2.0.
+% Note: This script was adapted from
+% compare_spike_counts_before_vs_during_by_WSR.m Version 5.0. The original
+% version of this script was titled
+% "compared_locomotion_before_vs_during_by_WSR.m"
+
+%% PART 1: Load data and get parameters
+
+clear all
+clc
+
+% Manually specify Mouse ID
+mouseLabel = inputdlg('Enter animal ID','User input');
+
+% select base directory from which to navigate
+baseDir = uigetdir('',"Select base directory for this animal.");
+
+% select locomotion_grouped_by_odor_trial.mat variable file
+[file, path] = uigetfile(".mat","Select [AK0xx]_locomotion_grouped_by_odor_trial.mat file for " + mouseLabel + ".",baseDir);
+
+% select path for output figures
+baseOutputPath = uigetdir(baseDir,"Select base directory in which to save outputs.");
+saveDir = baseOutputPath + "\" + "Velocity Response";
+% make new folder if it does not already exist
+if ~exist(saveDir,'dir')
+    mkdir(saveDir);
+end
+
+
+% load spikes_grouped_by_odor_trial.mat variable file
+tic
+disp("Loading locomotion grouped by odor trial data structure...")
+load(fullfile(path,file),"runningRaster","mouseLabel","timeBefore","timeDuring","timeAfter","sampFreq","nOdors","nTrialsPerOdor","odorIdentities"); % note: took <3 mins
+pointsBefore = timeBefore*sampFreq; 
+pointsDuring = timeDuring*sampFreq;
+pointsAfter = timeAfter*sampFreq;
+toc
+
+velocityRaster = squeeze(runningRaster);
+
+% Set the time windows for "before" and "during" windows
+startIndex = pointsBefore-pointsDuring;
+onsetIndex = startIndex + pointsDuring;
+endIndex = onsetIndex + pointsDuring;
+
+
+%% PART 2: Plot the trial aligned velocity traces for each odorant
+disp("Plotting the trial aligned velocity traces for each odorant...")
+
+decimateFactor = 10;
+timeVec = linspace(-timeBefore,timeDuring+timeAfter,(timeBefore+timeDuring+timeAfter)*sampFreq/decimateFactor);
+maxVelocity = max(velocityRaster(:));
+minVelocity = min(velocityRaster(:));
+
+% make the lines get progressively lighter as the trials progress
+grays = linspace(0.2, 0.8, nTrialsPerOdor);  % avoid pure black/white
+
+figure()
+sgtitle({string(mouseLabel), "running velocity"})
+for iOdorant = 1:nOdors
+    subplot(4,3,iOdorant)
+    for iTrial = 1:nTrialsPerOdor
+        plot(timeVec,decimate(squeeze(velocityRaster(iOdorant,iTrial,:)),decimateFactor),'Color',[grays(iTrial) grays(iTrial) grays(iTrial)],'LineWidth',2) % # rows = # odorants; # columns = # trials 
+        hold on
+        title(odorIdentities{iOdorant})
+    end
+    xlabel("time (sec)")
+    ylabel("velocity (cm/sec)")
+    xlim([-timeBefore,timeDuring+timeAfter])
+    ylim([minVelocity, maxVelocity])
+    xline(-3,'b:','LineWidth',2)
+    xline(0,'b','LineWidth',2)
+    xline(3,'b-.','LineWidth',2)
+end
+set(gcf,"Position",1.0e+03 *[0.3470    0.1763    1.2130    1.0613])
+hold off
+
+% SAVE
+saveas(gcf, saveDir + "\" + mouseLabel + "velocity_traces_per_odorant" + ".png")
+saveas(gcf, saveDir + "\" + mouseLabel + "velocity_traces_per_odorant" + ".fig")
+
+%% PART 3: Plot the trial aligned velocity traces for each odorant as a heatmap
+disp("Plotting the trial aligned velocity traces for each odorant...")
+
+figure()
+sgtitle({string(mouseLabel), "running velocity"})
+for iOdorant = 1:nOdors
+    subplot(4,3,iOdorant)
+    imagesc(squeeze(velocityRaster(iOdorant,:,:))=)
+    hold on
+    title(odorIdentities{iOdorant})
+    xlabel("time (sec)")
+    ylabel("velocity (cm/sec)")
+    xlim([-timeBefore,timeDuring+timeAfter])
+    %ylim([minVelocity, maxVelocity])
+    %xline(-3,'b:','LineWidth',2)
+    %xline(0,'b','LineWidth',2)
+    %xline(3,'b-.','LineWidth',2)
+end
+set(gcf,"Position",1.0e+03 *[0.3470    0.1763    1.2130    1.0613])
+hold off
+
+% SAVE
+%saveas(gcf, saveDir + "\" + mouseLabel + "velocity_traces_per_odorant" + ".png")
+%saveas(gcf, saveDir + "\" + mouseLabel + "velocity_traces_per_odorant" + ".fig")
+
+%% PART 3: Check the shape of the distribution of running velocities across the entire recording for this animal
+
+data = runningRaster(:);
+xVec = linspace(min(data),max(data),200);
+meanData = mean(data);
+sigmaData = std(data);
+gaussian = (1/(sigmaData*sqrt(2*pi))) * exp(-(xVec - meanData).^2 / (2*sigmaData^2));
+figure()
+histogram(runningRaster,'Normalization','pdf')
+hold on
+plot(xVec,gaussian,'r','LineWidth',2)
+set(gca,'YScale','log')
+title({"Distribution of velocity values across entire recording",string(mouseLabel)})
+hold off
+
+% SAVE
+saveas(gcf, saveDir + "\" + mouseLabel + "velocity_distribution_all_trials" + ".png")
+
+%% PART 4: Extract running velocity before and during odor delivery
+
+disp("Computing spike counts before and during odor delivery.")
+tic
+
+% Preallocate memory for new data structure
+beforeVelocity = nan(nOdors, nTrialsPerOdor,pointsDuring); % Create empty 3D matrix for storing total count of spikes per trial, grouped by odorant identity
+duringVelocity = nan(nOdors, nTrialsPerOdor,pointsDuring); % Create empty 3D matrix for storing total count of spikes per trial, grouped by odorant identity
+
+for iOdorant = 1:nOdors
+    for iTrial = 1:nTrialsPerOdor
+        beforeVelocity(iOdorant, iTrial,:) = velocityRaster(iOdorant,iTrial,startIndex:(onsetIndex-1));
+        duringVelocity(iOdorant, iTrial,:) = velocityRaster(iOdorant,iTrial,onsetIndex:(endIndex-1));
+    end
+end
+
+disp("Finished extracting velocity before and during odor delivery. PART TWO complete.")
+
+%% PART 5: Compare the median velocity before and during odor delivery using a Wilcoxan Signed Rank test
+
+beforeVelocityMedian = median(beforeVelocity,3);
+duringVelocityMedian = median(duringVelocity,3);
+
+rateDiff = (duringVelocityMedian - beforeVelocityMedian); % cm / sec
+medianVelocityDiff = median(rateDiff,2); % # rows = # odorants; # columns = # trials % Get the median change in velocity upon presentation of each odorant
+meanVelocityDiff = mean(rateDiff,2); % Get the mean change in velocity upon presentation of each odorant
+
+% Apply wilcoxan signed rank test
+wilcoxanSignedRankTestPValuesVelocity = nan(nOdors,1);
+for iOdorant = 1:nOdors
+    % Perform statistical test to evaluate this unit's response to
+    % this odorant
+    wilcoxanSignedRankTestPValuesVelocity(iOdorant) = signrank(beforeVelocityMedian(iOdorant,:), duringVelocityMedian(iOdorant,:));   
+end
+
+disp("Finished calculating Wilcoxan Signed Rank for velocity response to each odor. PART THREE complete.")
+
+
+%% PART 6: Compare the cumulative distribution functions of velocity before and during odor delivery
+
+% Define velocity bins
+velocityBinEdges = linspace(min(velocityRaster(:)),max(velocityRaster(:)),50);
+
+% Compute the cumulative distribution functions for each
+trialCDFShifts = nan(nOdors,nTrialsPerOdor);
+for iOdorant = 1:nOdors
+    for iTrial = 1:nTrialsPerOdor
+        beforeVelocityCDF = histcounts(beforeVelocity(iOdorant,iTrial),velocityBinEdges,'Normalization','cdf');
+        duringVelocityCDF = histcounts(duringVelocity(iOdorant,iTrial),velocityBinEdges,'Normalization','cdf');
+        trialCDFShifts(iOdorant,iTrial) = mean(beforeVelocityCDF - duringVelocityCDF);
+    end
+end
+% Note: A positive value in trialCDFShifts indicates the animal sped up. A 
+% negative value indicates the animal slowed down.
+
+% Compare results to a null distribution using a permutation test
+observedShift = mean(trialCDFShifts,2);
+
+% Run permutation test
+nPermutations = 2^nTrialsPerOdor;
+nullStats = nan(nOdors,nPermutations);
+pOdorant = nan(nOdors,1);
+for iOdorant = 1:nOdors
+    for iPerm = 1:nPermutations
+        signs = 2 * bitget((iPerm-1),1:nTrialsPerOdor) - 1;
+        nullStats(iOdorant,iPerm) = mean(signs(:).*trialCDFShifts(iOdorant,:)');
+    end
+    % Calculate p value for the running response to each odorant
+    pOdorant(iOdorant) = mean(abs(nullStats(iOdorant,:)) >= abs(observedShift(iOdorant)));
+end
+
+% Plot null distribution and true observations
+figure()
+sgtitle({string(mouseLabel), "running velocity null vs observed"})
+for iOdorant = 1:nOdors
+    subplot(4,3,iOdorant)
+    histogram(nullStats(iOdorant,:),'Normalization','probability') %,'FaceColor',[0.7 0.7 0.7],'EdgeColor','none')
+    hold on
+    plot([observedShift(iOdorant) observedShift(iOdorant)], ylim, 'r--','LineWidth',2);
+    xlabel("Mean difference in CDFs (before - during)")
+    ylabel("probability density")
+    legend('null distribution','observed statistic','Location','best')
+end
+set(gcf,"Position",1.0e+03 *[0.3470    0.1763    1.2130    1.0613])
+hold off
+
+% SAVE FIGURE
+saveas(gcf, saveDir + "\" + mouseLabel + "velocity_CDF_permutation_test_distribution" + ".png")
+saveas(gcf, saveDir + "\" + mouseLabel + "velocity_CDF_permutation_test_distribution" + ".fig")
+
+%% PART 7: Plot ranked p-values
+
+alpha = 0.05;
+
+% Plot p-values obtained by WSR Test
+% Sort p values by ascending rank
+pVals = wilcoxanSignedRankTestPValuesVelocity(:);
+xVec = 1:1:nOdors;
+BHline = alpha/nOdors.*xVec;
+BonferroniLine = alpha/nOdors.*ones(1,nOdors);
+noCorrectionLine = alpha.*ones(1,nOdors);
+[pValsSorted, idx] = sort(pVals);
+% Visualized ordered p values
+figure()
+scatter(xVec, pValsSorted,'filled')
+hold on
+plot(xVec, BHline)
+plot(xVec,BonferroniLine,'--')
+plot(xVec, noCorrectionLine,'--')
+xlabel("Rank (k)")
+ylabel("P-values")
+legend({"Obseved","Benjamini-Hockberg cutoff","Bonferroni cutoff","No correction"},'Location','northwest')
+title({"Effect of odorant on velocity","P-values from Wilcoxan Signed Rank Test (median velocity during vs. before)"})
+hold off
+saveas(gcf, saveDir + "\" + mouseLabel + "ranked_velocity_WSR_p_vals" + ".png")
+%saveas(gcf, saveFigDir + "\" + "ranked_velocity_WSR_p_vals" + ".fig")
+
+
+% Plot p-values obtained from CDF comparison
+% Sort p values by ascending rank
+pVals = pOdorant;
+xVec = 1:1:nOdors;
+BHline = alpha/nOdors.*xVec;
+BonferroniLine = alpha/nOdors.*ones(1,nOdors);
+noCorrectionLine = alpha.*ones(1,nOdors);
+[pValsSorted, idx] = sort(pVals);
+% Visualized ordered p values
+figure()
+scatter(xVec, pValsSorted,'filled')
+hold on
+plot(xVec, BHline)
+plot(xVec,BonferroniLine,'--')
+plot(xVec, noCorrectionLine,'--')
+xlabel("Rank (k)")
+ylabel("P-values")
+legend({"Obseved","Benjamini-Hockberg cutoff","Bonferroni cutoff","No correction"},'Location','northwest')
+title({"Effect of odorant on velocity","P-values from comparison of CDF (before - during)"})
+hold off
+saveas(gcf, saveDir + "\" + mouseLabel + "ranked_velocity_CDF_p_vals" + ".png")
+
+
+%% PART 8: Export data. Save results of statistical testing to .mat file
+
+% Compile statistical results into a table to save to .mat file for future
+% use
+mouseLabelVec = repmat(string(mouseLabel),12,1);
+velocityTestResultsTable = table(mouseLabelVec, odorIdentities',wilcoxanSignedRankTestPValuesVelocity, pOdorant,medianVelocityDiff, meanVelocityDiff);
+velocityTestResultsTable.Properties.VariableNames = ["Mouse","Odorant","WSR p-value","CDF p-value","median change in velocity","mean change in velocity"];
+
+nullCDFstats = nullStats;
+observedCDFshifts = observedShift;
+
+disp("Saving statistical test results...")
+% Save p-values
+save(saveDir + "\" + mouseLabel + "_effect_of_odor_on_velocity", "velocityTestResultsTable","nullCDFstats","observedCDFshifts",'-v7.3');
+toc
+disp("Done saving statistical results.")
+
+disp("End of Script.")

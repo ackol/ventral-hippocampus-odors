@@ -237,7 +237,7 @@ disp("Done saving statistical test p-values.")
 disp("End of Script.")
 
 
-%% LOCAL FUNCTIONS % Draft in progress, not complete
+%% LOCAL FUNCTIONS
 
 function p = exactpairedpermutation(beforeCounts, duringCounts)
     nTrials = length(beforeCounts);
@@ -251,8 +251,6 @@ function p = exactpairedpermutation(beforeCounts, duringCounts)
         % Convert integer to binary sign vector
         bits = bitget(i,1:nTrials);
         signs = 2 * bits - 1; % convert 0/1 to -1/+1
-        nullStats(iPerm+1) = mean(signs(L) .* diffs(:));
+        nullStats(iPer
     end
-
-    p = mean(abs(nullStats))
 end
