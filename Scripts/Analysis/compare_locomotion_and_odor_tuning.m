@@ -22,19 +22,22 @@
 
 %% PART 1: Load in Data
 
+clear all
+clc
+
 % Load in tested speed scores
-[file, path] = uigetfile(".mat","Select allSpeedScoreInfo.mat file for all mice.");
+[file, path] = uigetfile(".mat","Select testedSpeedScoreInfo.mat file for all mice.");
 disp("Loading tested speed scores...")
 load(fullfile(path,file)); 
 
 % Load in WSR significant odor tunings
-[file, path] = uigetfile(".mat","Select significantResultsAllMice.mat file.");
+[file, path] = uigetfile(".mat","Select significantResultsAllMice.mat file.",path);
 disp("Loading odor tuned neurons...")
 load(fullfile(path,file)); 
 nTunedOdorUnitPairs = height(significantResults);
 
 % Load in allUnitInfo
-[file, path] = uigetfile(".mat","Select allUnitInfo.mat file.");
+[file, path] = uigetfile(".mat","Select allUnitInfo.mat file.",path);
 disp("Loading unit information...")
 load(fullfile(path,file)); 
 
@@ -96,3 +99,7 @@ disp("Fraction of speed tuned CA1 neurons that are odor tuned: " + nBothCA1/nSpe
 % 
 % disp("Fraction of odor tuned CA3 neurons that are speed tuned: " + nBothCA3/nOdorTunedUnitsCA3)
 % disp("Fraction of speed tuned CA3 neurons that are odor tuned: " + nBothCA3/nSpeedTunedUnitsCA3)
+
+speedAndOdorTunedCells = overlap;
+% Save speedAndOdorTunedCells data structure
+save(path + "\" + "speedAndOdorTunedCells", "speedAndOdorTunedCells",'-v7.3');
