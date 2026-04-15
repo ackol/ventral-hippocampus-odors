@@ -22,7 +22,7 @@
 % Version 2.0 was titled
 % "generate_figures_for_poster_achems_2025_populationvariability_v2.m")
 
-%% PART ONE: Retrieve results of statistical testing
+%% PART ONE: Load results of statistical testing
 clear vars
 
 baseDir = uigetdir('',"Select base directory from which to navigate.");
@@ -38,6 +38,8 @@ load(fullfile(path,file),"medianChangeInRateConcat","medianDeltaRate","nUnitsPer
 % Load allUnitInfo from all animals
 [file, path] = uigetfile(".mat","Select allUnitInfo.mat file.",baseDir);
 load(fullfile(path,file),"allUnitInfo","totalUnits","mice","nMice"); 
+
+nOdorantsPerUnit = 12;
 
 clear file path
 
@@ -410,28 +412,37 @@ totalDGSignificantPerOdorantTable = sortrows(totalDGSignificantPerOdorantTable,"
 
 %% Sort responses by anatomical location and chemical functional group
 
-unitLocationsAllMice = table();
-unitColumn = [];
-anatomicalLocationColumn = [];
-mouseColumn = [];
-unitCounter = 1;
-mouseCounter = 1;
-for iUnit = 1:totalUnits
-    unitColumn = [unitColumn; unitCounter];
-    anatomicalLocationColumn = [anatomicalLocationColumn; allUnitInfo.("UNIT" + num2str(iUnit, "%.3d")).info.anatomicAbbrev];
-    mouseColumn = [mouseColumn; allUnitInfo.("UNIT" + num2str(iUnit, "%.3d")).info.mouse];
-    if unitCounter < nUnitsPerMouse(mouseCounter)
-        unitCounter = unitCounter + 1;
-    else
-        unitCounter = 1;
-        mouseCounter = mouseCounter + 1;
-    end
-end
-unitLocationsAllMice.unit = unitColumn;
-unitLocationsAllMice.("anatomical location") = anatomicalLocationColumn;
-unitLocationsAllMice.mouse = mouseColumn;
+% Load unitLocationsAllMice from all animals
+[file, path] = uigetfile(".mat","Select unitLocationsAllMice.mat file.",baseDir);
+load(fullfile(path,file)); 
 
-%save(baseDir + "\" + "unitLocationsAllMice.mat", "unitLocationsAllMice",'-v7.3');
+% I think this following code was used originally to produce the
+% unitLocationsAllMice.mat data structure? However, I think that structure
+% was subsequently manually modified to correctly assign subregions to the
+% CA3 units. When the following code is re-run, it results in a generic
+% "CA3" category. 
+% unitLocationsAllMice = table();
+% unitColumn = [];
+% anatomicalLocationColumn = [];
+% mouseColumn = [];
+% unitCounter = 1;
+% mouseCounter = 1;
+% for iUnit = 1:totalUnits
+%     unitColumn = [unitColumn; unitCounter];
+%     anatomicalLocationColumn = [anatomicalLocationColumn; allUnitInfo.("UNIT" + num2str(iUnit, "%.3d")).info.anatomicAbbrev];
+%     mouseColumn = [mouseColumn; allUnitInfo.("UNIT" + num2str(iUnit, "%.3d")).info.mouse];
+%     if unitCounter < nUnitsPerMouse(mouseCounter)
+%         unitCounter = unitCounter + 1;
+%     else
+%         unitCounter = 1;
+%         mouseCounter = mouseCounter + 1;
+%     end
+% end
+% unitLocationsAllMice.unit = unitColumn;
+% unitLocationsAllMice.("anatomical location") = anatomicalLocationColumn;
+% unitLocationsAllMice.mouse = mouseColumn;
+% 
+% %save(baseDir + "\" + "unitLocationsAllMice.mat", "unitLocationsAllMice",'-v7.3');
 
 
 % create new version that has units sorted by anatomical location
@@ -442,9 +453,8 @@ medianChangeInRateConcatAnatomicalSort = [];
 %     "Basolateral amygdalar nucleus posterior part","Endopiriform nucleus ventral part",...
 %     "Postpiriform transition area","V1"]);
 [found, idx] = ismember(unitLocationsAllMice.("anatomical location"), ...
-    ["DG","dCA3","iCA3","vCA3","vCA1","iCA1","dCA1","CA2","SUB",...
-    "BLAp","EPv",...
-    "TR","V1"]);
+    ["DG","iCA3","vCA3","iCA1","vCA1","CA2","dCA1","dCA3","SUB",...
+    "BLAp","EPv", "TR","V1"]);
 [~, sortorder] = sort(idx);
 unitLocationsAllMiceSorted = unitLocationsAllMice(sortorder,:); 
 
@@ -456,7 +466,7 @@ for iRow = 1:height(unitLocationsAllMiceSorted)
 end
 
 
-odorantsOrderedPanelCFcnGrpSort = ["limonene", "cumene", "octanol", "eugenol", "hexanal", "valeraldehyde", "amyl acetate", "isoamyl acetate", "acetophenone", "valeric acid","mineral oil", "air"];
+odorantsOrderedPanelCFcnGrpSort = ["limonene", "cumene", "1-octanol", "eugenol", "hexanal", "valeraldehyde", "amyl acetate", "isoamyl acetate", "acetophenone", "valeric acid","mineral oil", "air"];
 includeAir = true;
 if includeAir == true
     finalIdx = 12;
@@ -487,7 +497,7 @@ end
 %% Plot heatmap of all modulations (significant and not significant), grouped by anatomical location
 
 
-figure(7)
+figure()
 ax1 = subplot(1,2,1);
 imagesc(medianChangeInRateConcatAnatomicalSortOdorSort)
 %title('median difference in spike rate (all units)')
@@ -527,6 +537,7 @@ for i = 1:length(newRegionIndices)
         'FontSize', 8, 'HorizontalAlignment', 'center');
 end
 % Hold off to stop overlaying
+xline(11.5,'Color', 'black','LineWidth',2)
 hold off;
 % from ChatGPT -- end --.
 
@@ -535,7 +546,7 @@ hold off;
 
 % get direction of modulation
 responseDirection = zeros(totalUnits,nOdorantsPerUnit); % 1 for upmodulation, 0 for no modulation, -1 for downmodulation
-responseMagnitude = zeros(totalUnits,nOdorantsPerUnit); % 1 for upmodulation, 0 for no modulation, -1 for downmodulation
+responseMagnitude = zeros(totalUnits,nOdorantsPerUnit);
 
 % only the significant results will have a modulation direction
 significantResultsID = significantResults.Mouse + significantResults.("Unit #");
@@ -592,6 +603,7 @@ for i = 1:length(newRegionIndices)
         row, regionLabels(i), 'Color', 'black', ...
         'FontSize', 8, 'HorizontalAlignment', 'center');
 end
+xline(11.5,'Color', 'black','LineWidth',2)
 
 %% Export Heatmap matrices for Krishnan
 
@@ -622,6 +634,271 @@ end
 mapRowIndexToAnatomy(mapRowIndexToAnatomy > 3) = 4;
 
 save(baseDir + "\" + "odortuning_heatmap_variables.mat","medianChangeInRateConcatAnatomicalSortOdorSort", "responseMagnitude","mapRowIndexToAnatomy",'-v7.3');
+
+%% Plot sparsity versus direction of tuning for ALL units
+
+
+
+%% Plot sparsity versus direction of tuning for significant units only
+
+% get the mean magnitude of response (for ALL units) and the sparsity
+meanMagnitudeEveryUnit = mean(medianChangeInRateConcatAnatomicalSort,2);
+sparsityEveryUnit = sum(responseMagnitude(:,1:11) ~= 0,2);
+
+% shrink matrix down to only include rows with at least one significant
+% response
+unitLocationsAllMiceSorted.UniqueID = unitLocationsAllMiceSorted.mouse + "-" + unitLocationsAllMiceSorted.unit;
+significantResults.UniqueID = significantResults.Mouse + "-" + significantResults.("Unit #");
+significantUnits = unique(significantResults.UniqueID);
+rowIDs = ismember(unitLocationsAllMiceSorted.UniqueID,significantUnits);
+responseMagnitudeOdorTunedUnitsOnly = responseMagnitude(rowIDs,:);
+responseMagnitudeAllUnits = medianChangeInRateConcatAnatomicalSort(rowIDs,:);
+
+sparsityPerUnit = sum(responseMagnitudeOdorTunedUnitsOnly(:,1:11) ~= 0, 2);
+responseMagnitudePerUnit = sum(responseMagnitudeOdorTunedUnitsOnly(:,1:11), 2) ./ sum(responseMagnitudeOdorTunedUnitsOnly(:,1:11) ~= 0, 2);
+meanResponseMagnitudeAllUnits = mean(responseMagnitudeAllUnits,2);
+
+figure()
+subplot(1,2,1)
+histogram(sparsityPerUnit)
+subplot(1,2,2)
+histogram(sparsityEveryUnit)
+%%
+indicesCA3 = unitLocationsAllMiceSorted.("anatomical location")=="vCA3" | unitLocationsAllMiceSorted.("anatomical location")=="iCA3";
+indicesCA1 = unitLocationsAllMiceSorted.("anatomical location")=="vCA1" | unitLocationsAllMiceSorted.("anatomical location")=="iCA1";
+indicesDG = unitLocationsAllMiceSorted.("anatomical location")=="DG";
+%%
+yMin = -0.05;
+yMax = 0.7; 
+
+figure()
+subplot(3,1,1)
+scatter(meanMagnitudeEveryUnit(indicesCA1),sparsityEveryUnit(indicesCA1)/11,'b','filled','MarkerFaceAlpha',0.5)
+hold on
+scatter(meanMagnitudeEveryUnit(indicesCA3),sparsityEveryUnit(indicesCA3)/11,'g','filled','MarkerFaceAlpha',0.5)
+scatter(meanMagnitudeEveryUnit(indicesDG),sparsityEveryUnit(indicesDG)/11,'m','filled','MarkerFaceAlpha',0.5)
+%scatter(meanMagnitudeEveryUnit(indicesDG),sparsityEveryUnit(indicesDG)/11,'m','filled')
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+title("All units, all odors")
+ylim([yMin yMax])
+%legend(["DG","CA3","CA1",""])
+legend(["CA1","CA3","DG"])
+
+subplot(3,1,2)
+scatter(meanResponseMagnitudeAllUnits,sparsityPerUnit/11,'filled','MarkerFaceAlpha',0.5)
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+title("Significant units, all odors")
+ylim([yMin yMax])
+
+subplot(3,1,3)
+scatter(responseMagnitudePerUnit,sparsityPerUnit/11,'filled','MarkerFaceAlpha',0.5)
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+title("Significant unit-odor pairs only")
+ylim([yMin yMax])
+
+%%
+
+xMin = -2;
+xMax = 4;
+
+figure()
+sgtitle("All units, all odors")
+subplot(3,1,1)
+scatter(meanMagnitudeEveryUnit(indicesDG),sparsityEveryUnit(indicesDG)/11,'m','filled','MarkerFaceAlpha',0.5)
+hold on
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+title("DG")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+subplot(3,1,2)
+scatter(meanMagnitudeEveryUnit(indicesCA3),sparsityEveryUnit(indicesCA3)/11,'g','filled','MarkerFaceAlpha',0.5)
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+title("CA3")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+subplot(3,1,3)
+scatter(meanMagnitudeEveryUnit(indicesCA1),sparsityEveryUnit(indicesCA1)/11,'b','filled','MarkerFaceAlpha',0.5)
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+title("CA1")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+%%
+Xedges = -2:0.5:4;
+Yedges = -0.05:0.08:0.7;
+
+figure()
+subplot(3,1,1)
+hist3([meanMagnitudeEveryUnit(indicesCA1) sparsityEveryUnit(indicesCA1)/11], 'Edges', {Xedges Yedges},'CDataMode','auto','FaceColor','interp');
+view(2);        % top-down view
+colorbar;
+set(gca, 'ColorScale', 'log');
+title("CA1")
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+subplot(3,1,2)
+hist3([meanMagnitudeEveryUnit(indicesCA3) sparsityEveryUnit(indicesCA3)/11],  'Edges', {Xedges Yedges},'CDataMode','auto','FaceColor','interp');
+view(2);        % top-down view
+colorbar;
+set(gca, 'ColorScale', 'log');
+title("CA3")
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+subplot(3,1,3)
+hist3([meanMagnitudeEveryUnit(indicesDG) sparsityEveryUnit(indicesDG)/11],  'Edges', {Xedges Yedges},'CDataMode','auto','FaceColor','interp');
+view(2);        % top-down view
+colorbar;
+set(gca, 'ColorScale', 'log');
+title("DG")
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+%%
+
+%%
+Xedges = -2:0.2:4;
+Yedges = -0.05:0.05:0.7;
+
+logOn = false;
+
+% Plot
+figure()
+
+
+subplot(3,1,3)
+[counts, xedges, yedges] = histcounts2(meanMagnitudeEveryUnit(indicesCA1), sparsityEveryUnit(indicesCA1)/11, Xedges,Yedges);
+% Smooth it
+countsSmooth = imgaussfilt(counts, 0.75);
+imagesc(xedges, yedges, countsSmooth');
+set(gca, 'YDir', 'normal');
+cb = colorbar;
+if logOn
+    set(gca, 'ColorScale', 'log');
+    cb.Label.String = "log of smoothed counts";
+else
+    cb.Label.String = "smoothed counts";
+end
+title("CA1")
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+subplot(3,1,2)
+[counts, xedges, yedges] = histcounts2(meanMagnitudeEveryUnit(indicesCA3), sparsityEveryUnit(indicesCA3)/11, Xedges,Yedges);
+% Smooth it
+countsSmooth = imgaussfilt(counts, 0.75);
+imagesc(xedges, yedges, countsSmooth');
+set(gca, 'YDir', 'normal');
+cb = colorbar;
+if logOn
+    set(gca, 'ColorScale', 'log');
+    cb.Label.String = "log of smoothed counts";
+else
+    cb.Label.String = "smoothed counts";
+end
+title("CA2")
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+subplot(3,1,1)
+[counts, xedges, yedges] = histcounts2(meanMagnitudeEveryUnit(indicesDG), sparsityEveryUnit(indicesDG)/11, Xedges,Yedges);
+% Smooth it
+countsSmooth = imgaussfilt(counts, 0.75);
+imagesc(xedges, yedges, countsSmooth');
+set(gca, 'YDir', 'normal');
+cb = colorbar;
+if logOn
+    set(gca, 'ColorScale', 'log');
+    cb.Label.String = "log of smoothed counts";
+else
+    cb.Label.String = "smoothed counts";
+end
+title("DG")
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+%% 
+
+% Can see okay from this one, but it gets smoothed past zero, and you lose the
+% sparse density on the edges (which is part of what distinguishes the
+% clusters)
+
+% data
+x1 = meanMagnitudeEveryUnit(indicesCA1); y1 = sparsityEveryUnit(indicesCA1)/11;
+x2 = meanMagnitudeEveryUnit(indicesCA3); y2 = sparsityEveryUnit(indicesCA3)/11;
+x3 = meanMagnitudeEveryUnit(indicesDG); y3 = sparsityEveryUnit(indicesDG)/11;
+
+% Common grid
+xlin = linspace(-2,4,20);
+ylin = linspace(0,0.7,20);
+[xi, yi] = meshgrid(xlin, ylin);
+
+figure; hold on;
+
+% Group 1
+f1 = ksdensity([x1 y1], [xi(:) yi(:)]);
+contour(xi, yi, reshape(f1,size(xi)), 'r', 'LineWidth', 1.5);
+
+% Group 2
+f2 = ksdensity([x2 y2], [xi(:) yi(:)]);
+contour(xi, yi, reshape(f2,size(xi)), 'b', 'LineWidth', 1.5);
+
+% Group 3
+f3 = ksdensity([x3 y3], [xi(:) yi(:)]);
+contour(xi, yi, reshape(f3,size(xi)), 'k', 'LineWidth', 1.5);
+
+legend('CA1','CA3','DG');
+
+%%
+% Totally not able to distinguish the three groups (since their centers of
+% density overlap)
+figure; hold on;
+
+[~,h1] = contourf(xi, yi, reshape(f1,size(xi)), 10, 'LineColor','none');
+h1.FaceAlpha = 0.3;
+
+[~,h2] = contourf(xi, yi, reshape(f2,size(xi)), 10, 'LineColor','none');
+h2.FaceAlpha = 0.3;
+
+[~,h3] = contourf(xi, yi, reshape(f3,size(xi)), 10, 'LineColor','none');
+h3.FaceAlpha = 0.3;
+
+
+%%
+% Not sure why this just totally isn't working??
+[n1,~,~] = histcounts2(x1,y1,20);
+[n2,~,~] = histcounts2(x2,y2,20);
+[n3,~,~] = histcounts2(x3,y3,20);
+
+n1 = imgaussfilt(n1,0.5);
+n2 = imgaussfilt(n2,0.5);
+n3 = imgaussfilt(n3,0.5);
+
+figure; hold on;
+contour(n1','r');
+contour(n2','b');
+contour(n3','k');
 
 
 %% PART THREE: PLOTTING
