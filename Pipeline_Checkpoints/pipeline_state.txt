@@ -16,3 +16,4 @@ Step	Stage	Date
 14	compute and plot spike-speed correlations (all 8 animals)	4/12/2026 9:39pm
 15	align running data to odor delivery periods (all 8 mice)	4/14/2026 3:56pm
 16	compare locomotion before versus during odor delivery (all 8 mice)	4/14/2026 5:48pm
+17	performed SVM LOOCV for CA1, CA3, and DG in one animal each (the animal with the most units for each)	4/16/2026
