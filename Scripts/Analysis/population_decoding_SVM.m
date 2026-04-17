@@ -26,25 +26,38 @@
 % Padmanabhan Lab, University of Rochester School of Medicine
 % PI contact email: krishnan_padmanabhan@urmc.rochester.edu
 % Script first created: December 5, 2025 (Version 1.0)
-% Script last updated: January 28, 2026
-% Version 1.0. 
+% Script last updated: April 15, 2026
+% Version 2.0. 
 
 %% SUMMARY OF DATA
 
-% AK014: had 30 vCA1 units simultaneously recorded
+% AK014: had 30 vCA1 units simultaneously recorded -- DONE
 % AK025: had 19 vCA1 units simultaneously recorded
 % AK024: had 24 dentate gyrus units simultaneously recorded
-% AK027: had 46 CA3 units simultaneously recorded
+% AK027: had 46 CA3 units simultaneously recorded -- DONE
 
 %% PART ONE: Load the data
 % Specifically, load the population activity from a single animal across '
 % all trials of all odorants
 
+clear vars
+clc
+
 % Manually specify Mouse ID
 mouseLabel = inputdlg('Enter animal ID','User input');
 
 % Manually specify region of interest
-regionLabel = inputdlg('Enter region ID (e.g. vCA1, CA3, dentate gyrus)','User input');
+regionLabel = inputdlg('Enter region ID (e.g. CA1, CA3, DG)','User input');
+if strcmp(string(regionLabel),"CA1")
+    region{1} = "vCA1";
+    region{2} = "iCA1";
+elseif strcmp(string(regionLabel),"CA3")
+    region{1} = "vCA3";
+    region{2} = "iCA3";
+elseif strcmp(string(regionLabel),"DG")
+    region{1} = "DG";
+    region{2} = "NOT A REGION";
+end
 
 % Select base directory from which to navigate data section
 baseDir = uigetdir('',"Select base directory for this animal.");
@@ -56,12 +69,32 @@ disp("Loading odorant names for this experiment...")
 load(fullfile(path,file));
 toc
 
+% Load odor color variables
+[file, path] = uigetfile(".mat","Select odorColors.mat file.", baseDir);
+tic
+disp("Loading odorant colors and markers...")
+load(fullfile(path,file)); % note: took <3 mins
+toc
+classesSortedbyFcnGrp = ["limonene" "cumene" "1-octanol" "eugenol" "hexanal" "valeraldehyde" "amyl acetate" "isoamyl acetate" "acetophenone" "valeric acid" "mineral oil" "air"];
+
+% select path for output figures
+baseOutputPath = uigetdir(path,"Select base directory in which to save outputs.");
+saveFigDir = baseOutputPath;
+% make new folder if it does not already exist
+if ~exist(saveFigDir,'dir')
+    mkdir(saveFigDir);
+end
+
 % Load spike variable
 [file, path] = uigetfile(".mat","Select [AK###]_spikes_grouped_by_odor_trial.mat file for " + mouseLabel + ".",baseDir);
 tic
 disp("Loading population activity for all odorant trials...")
 load(fullfile(path,file)); % note: took <3 mins
 toc
+
+
+
+%%
 
 % Get dimensions of dataset
 nOdors = size(spikeRaster,1);
@@ -73,20 +106,29 @@ pointsBefore = timeBefore*sampFreq;
 pointsDuring = timeDuring*sampFreq;
 pointsAfter = timeAfter*sampFreq;
 
+% Get unit to region mapping
+getRegion = [];
+for iUnit = 1:nUnits
+    getRegion = [getRegion; unitInfo.("UNIT" + num2str(iUnit, "%.3d")).info.anatomicAbbrev];
+end
+
 % Extract only units from specified region
 unitsInRegion = [];
 for iUnit = 1:nUnits
-    rowNum = find(channelToAnatomyTable.Channel == getContactNumber(iUnit));
-    region = channelToAnatomyTable.("Anatomical Region")(rowNum);
-    if region == regionLabel{1}
+    thisRegion = getRegion(iUnit);
+    if thisRegion == region{1}
+        unitsInRegion = [unitsInRegion iUnit];
+    elseif thisRegion == region{2}
         unitsInRegion = [unitsInRegion iUnit];
     end
 end
 mask = true(1, size(spikeRaster,3));
 mask(unitsInRegion) = false;
 spikeRaster(:,:,mask,:) = []; % Feb 2026 TO FIX -- RUNNING OUT OF MEMORY HERE AT THIS STEP!!
+tic
 thisRegionSpikeRaster = spikeRaster;
-%clear spikeRaster
+toc
+clear spikeRaster
 
 % For now, we will only analyze odor panel #1 (12 odors total)
 nOdors = 12;
@@ -116,8 +158,8 @@ spikeCounts = sum(duringRasters,4); % This is the feature vector
 
 %% Organize the input vectors
 
-classesSortedbyNumbering = ["limonene" "cumene" "octanol" "eugenol" "hexanal" "valeraldehyde" "acetophenone" "amyl acetate" "valeric acid" "isoamyl acetate" "mineral oil" "air"];
-classesSortedbyFcnGrp = ["limonene" "cumene" "octanol" "eugenol" "hexanal" "valeraldehyde" "amyl acetate" "isoamyl acetate" "acetophenone" "valeric acid" "mineral oil" "air"];
+classesSortedbyNumbering = ["limonene" "cumene" "1-octanol" "eugenol" "hexanal" "valeraldehyde" "acetophenone" "amyl acetate" "valeric acid" "isoamyl acetate" "mineral oil" "air"];
+classesSortedbyFcnGrp = ["limonene" "cumene" "1-octanol" "eugenol" "hexanal" "valeraldehyde" "amyl acetate" "isoamyl acetate" "acetophenone" "valeric acid" "mineral oil" "air"];
 
 Xall = [];
 Yall = [];
@@ -135,14 +177,9 @@ end
 %markers = 'o+*.xsd^v><p';
 %save("odorColors.mat",'colors','markers','classesSortedbyFcnGrp')
 
-% Load odor color variables
-[file, path] = uigetfile(".mat","Select odorColors.mat file.", baseDir);
-tic
-disp("Loading odorant colors and markers...")
-load(fullfile(path,file)); % note: took <3 mins
-toc
-
 %% Visualize the data -- first perform PCA
+
+disp("Visualizing the data using PCA...")
 
 % Perform PCA on population responses
 [PCAcoeff, score, latent, tsquared, explained, mu] = pca(Xall);
@@ -160,6 +197,9 @@ yLimits = ylim;
 legend('Location','eastoutside')
 hold off
 
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_PCA_2D_allodors" + ".png")
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_PCA_2D_allodors" + ".fig")
+
 figure
 for iOdor = 1:nOdors
     subplot(3,4,iOdor)
@@ -172,6 +212,9 @@ for iOdor = 1:nOdors
     legend('Location','northoutside')
 end
 sgtitle({mouseLabel{1} + ", " + nUnitsThisRegion + " " + regionLabel{1} + " units, all trials"})
+
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_PCA_2D_eachodor" + ".png")
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_PCA_2D_eachodor" + ".fig")
 
 %% Visualize the data -- Plot PCA in 3D for all odors
 
@@ -198,6 +241,9 @@ title({mouseLabel{1} + ", " + num2str(nUnitsThisRegion) + " " + regionLabel{1} +
 legend(classesSortedbyFcnGrp,'Location','eastoutside')
 hold off
 
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_PCA_3D_allodors" + ".png")
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_PCA_3D_allodors" + ".fig")
+
 openPositions = [4:6, 10:12, 13:18];
 for iOdor = 1:nOdors
     ax(1+iOdor) = subplot(3,6,openPositions(iOdor));
@@ -222,7 +268,12 @@ hlink = linkprop(ax, {'CameraPosition','CameraTarget','CameraUpVector'});
 
 rotate3d on
 
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_PCA_3D_eachodor" + ".png")
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_PCA_3D_eachodor" + ".fig")
+
 %% Visualize the data -- next perform NNMF to extract 2 features
+
+disp("Visualizing the data using NNMF...")
 
 % Arrange the feature matrix such that each column represents a
 % high-dimensional neural response vector for a single odor trial
@@ -248,6 +299,9 @@ yLimits = ylim;
 legend('Location','eastoutside')
 hold off
 
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_NNMF_2D_allodors" + ".png")
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_NNMF_2D_allodors" + ".fig")
+
 % Inidividual subplots for each odor
 figure
 for iOdor = 1:nOdors
@@ -262,6 +316,8 @@ for iOdor = 1:nOdors
 end
 sgtitle("NNMF, " + mouseLabel{1} +", " + regionLabel{1} + " units, all trials")
 
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_NNMF_2D_eachodor" + ".png")
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_NNMF_2D_eachodor" + ".fig")
 %% Visualize the data -- next perform NNMF to extract 3 features
 
 % Arrange the feature matrix such that each column represents a
@@ -322,6 +378,9 @@ hlink = linkprop(ax, {'CameraPosition','CameraTarget','CameraUpVector'});
 
 rotate3d on
 
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_NNMF_3D_eachodor" + ".png")
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_NNMF_3D_eachodor" + ".fig")
+
 %% PART THREE: Create training and test data
 
 % To start, let's try just using two classes -- odor 1 and odor 12
@@ -351,7 +410,7 @@ gscatter(X(:,1),X(:,2),categorical(Y))
 hold on
 plot(sv(:,1),sv(:,2),'ko','MarkerSize',10)
 legend(classOrder{1},classOrder{2},"Support Vector")
-title({"AK014, 30 vCA1 units, all trials","Odor 1 versus Odor 12"})
+title({mouseLabel + " , " + nUnitsThisRegion + " " + regionLabel + " units, all trials","Odor 1 versus Odor 12"})
 xlabel("response of neuron 1")
 ylabel("response of neuron 2")
 hold off
@@ -368,7 +427,7 @@ gscatter(score(:,1),score(:,2),categorical(Y))
 hold on
 plot(svPCA(:,1),svPCA(:,2),'ko','MarkerSize',10)
 legend(classOrder{1},classOrder{2},"Support Vector")
-title({"AK014, 30 vCA1 units, all trials","Odor 1 versus Odor 12"})
+title({mouseLabel + " , " + nUnitsThisRegion + " " + regionLabel + " units, all trials","Odor 1 versus Odor 12"})
 xlabel("PC 1")
 ylabel("PC 2")
 hold off
@@ -387,7 +446,7 @@ plot3(svPCA(:,1),svPCA(:,2),svPCA(:,3),'ko','MarkerSize',10)
 xlabel("PC 1")
 ylabel("PC 2")
 zlabel("PC 3")
-title({"AK014, 30 vCA1 units, all trials","Odor 1 versus Odor 12"})
+title({mouseLabel + " , " + nUnitsThisRegion + " " + regionLabel + " units, all trials","Odor 1 versus Odor 12"})
 legend(classOrder{1},classOrder{2},"Support Vector")
 hold off
 
@@ -482,7 +541,7 @@ for iOdor = 1:nOdors
     classes = [classes string(odorIdentities{iOdor})];
 end
 
-classesSortedbyFcnGrp = ["limonene" "cumene" "octanol" "eugenol" "hexanal" "valeraldehyde" "amyl acetate" "isoamyl acetate" "acetophenone" "valeric acid" "mineral oil" "air"];
+classesSortedbyFcnGrp = ["limonene" "cumene" "1-octanol" "eugenol" "hexanal" "valeraldehyde" "amyl acetate" "isoamyl acetate" "acetophenone" "valeric acid" "mineral oil" "air"];
 
 % Note: MATLAB recommends against using Leave-One-Out Cross validation for
 % multiclass SVMs. Because removal of a single point can drastically change
@@ -507,7 +566,7 @@ figure
 Ynewc = categorical(Ynew,classOrder,'Ordinal',true);
 predictedOdorsc = categorical(predictedOdors,classOrder,'Ordinal',true);
 cm = confusionchart(Ynewc,predictedOdorsc);
-cm.Title = "Odorant Classification using AK014's 30 vCA1 units and LOOCV SVM approach";
+cm.Title = "Odorant Classification using " + mouseLabel + "'s " + nUnitsThisRegion + " " + regionLabel + " units and LOOCV SVM approach";
 cm.RowSummary = 'row-normalized';
 cm.ColumnSummary = 'column-normalized';
 cm
@@ -515,8 +574,12 @@ cm
 modelErrorRate = kfoldLoss(multiClassModel);
 modelAccuracy = 1 - modelErrorRate;
 
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_SVM_LOOCV_confusionmatrix" + ".png")
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_SVM_LOOCV_confusionmatrix" + ".fig")
+
 %% Now, lets build a bunch of models using repeatedly shuffled data as a null comparison
 
+disp("Constructing null model using shuffled data...")
 % Shuffle the odor labels
 nRepeats = 750;
 modelAccuracyNull = nan(1,nRepeats);
@@ -553,15 +616,23 @@ for iRepeat = 1:nRepeats
     toc
 end
 
+tic
+disp("Saving decoder data structure to .mat file.")
+save(saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_SVM_LOOCV_Results.mat","mouseLabel","regionLabel","multiClassModel","Ynewc","predictedOdorsc","modelAccuracy","modelAccuracyNull", "odorIdentities",'-v7.3');
+toc
+
+
 %% Plot histogram of null accuracy values
 chanceAccuracy = 1/nOdors;
+
+pVal = 1 - sum(modelAccuracy > modelAccuracyNull)/length(modelAccuracyNull);
 
 figure;
 histogram(modelAccuracyNull,'Normalization','probability')
 xlim([0 0.50])
 xlabel("Model Accuracy (% correct)")
 ylabel("Probability")
-title({"Null SVM models built on shuffled data", "AK014, 30 vCA1 units","# of Shuffles = " + nRepeats})
+title({"Null SVM models built on shuffled data", mouseLabel + ", " + nUnitsThisRegion + " " + regionLabel + " units","# of Shuffles = " + nRepeats, "p = " + pVal})
 xline(median(modelAccuracyNull),'g','LineWidth',0.5)
 xline(mean(modelAccuracyNull),'m','LineWidth',0.5)
 xline(chanceAccuracy,'b--','LineWidth',2)
@@ -571,6 +642,11 @@ legend("null accuracy (shuffled)", ...
     "mean null accuracy = " + mean(modelAccuracyNull), ...
     "expected chance accuracy = " + chanceAccuracy, ...
     "actual accuracy (unshuffled) = " + modelAccuracy)
+
+disp("Saving histogram of null and observed.")
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_SVM_LOOCV_null_vs_observed_histogram" + ".png")
+saveas(gcf, saveFigDir + "\" + mouseLabel + "_" + regionLabel + "_SVM_LOOCV_null_vs_observed_histogram" + ".fig")
+
 
 %% Could also create a null model using before-odor presentation window (check accuracy value obtained using those values, not shuffled)
 
