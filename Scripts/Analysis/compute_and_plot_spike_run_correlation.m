@@ -11,7 +11,7 @@
 % https://www.sciencedirect.com/science/article/pii/S2211124718316437?via%3Dihub#fig1
 %
 %   Inputs:
-%       USER MUST SPECIFY VIA UI:regio
+%       USER MUST SPECIFY VIA UI:
 %       (1) mouseID
 %       (2) base directory
 %       (3) [AK0xx]_smoothed_spike_rate_data.mat

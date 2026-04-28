@@ -1,13 +1,21 @@
 % plot_speed_score_summary.m - This code is designed to plot two
 % histograms, one of the null distribution (produced via circularly
 % shuffling the speed vector) and one of the observed speed scores in the
-% entire population of units that was recorded
+% entire population of units that was recorded. Also plots pie charts
+% showing the prevelance of speed cells across brain regions.
 %
 %   Inputs:
 %       [variable] - ...
 %
 %   Outputs:
-%       ...
+%       testedSpeedScoreInfo.mat
+%           testedSpeedScores
+%           alpha
+%       all_mice_speed_score_histogram.png 
+%       CA1_speed_score_histogram.png
+%       CA3_speed_score_histogram.png
+%       DG_speed_score_histogram.png
+%       prevelance_of_speed_cells_across_regions.png
 %
 %   Dependencies:
 %       ...
@@ -41,7 +49,7 @@ positiveSpeedCellsCount = sum(speedScoresAll>upperThreshold);
 negativeSpeedCellCount = sum(speedScoresAll<lowerThreshold);
 
 [nullCounts, nullEdges] = histcounts(nullSpeedScoresAll,'BinMethod','auto');
-[observedCounts, observedEdges] = histcounts(nullSpeedScoresAll,'BinMethod','auto');
+[observedCounts, observedEdges] = histcounts(speedScoresAll,'BinMethod','auto');
 maxScore = max([max(abs(nullEdges)) max(abs(observedEdges))]);
 
 % NOTE: This figure as written may cut off any edge observed units (since
@@ -61,6 +69,43 @@ legend({'null distribution','observed scores','2.5 and 97.5 %iles of null'},'Loc
 saveas(gcf, saveFigDir + "\" + "all_mice_speed_score_histogram" + ".png")
 
 disp("Completed PART TWO. Successfully saved null vs. observed histogram for all animals.")
+
+%% PART 2.5 Plot histogram and highlight one speed score value
+
+disp("Starting PART 2.5. Generating null speed score histogram with one observed score shown.")
+
+speedScoresAll = observedSpeedScoresAll.("Pearson correlation");
+
+upperThreshold = prctile(nullSpeedScoresAll(:),97.5);
+lowerThreshold = prctile(nullSpeedScoresAll(:),2.5);
+
+positiveSpeedCellsCount = sum(speedScoresAll>upperThreshold);
+negativeSpeedCellCount = sum(speedScoresAll<lowerThreshold);
+
+[nullCounts, nullEdges] = histcounts(nullSpeedScoresAll,'BinMethod','auto');
+[observedCounts, observedEdges] = histcounts(speedScoresAll,'BinMethod','auto');
+maxScore = max([max(abs(nullEdges)) max(abs(observedEdges))]);
+
+% NOTE: This figure as written may cut off any edge observed units (since
+% the bounds of the x-axis are set based on the null histogram edges, which
+% does not take into account the observed data range).
+figure('Visible','on');
+histogram(nullSpeedScoresAll,nullEdges,'Normalization','probability')
+hold on
+bar(0.5275,0.03,0.03)
+bar(-0.2942,0.03,0.03)
+bar(0.0404,0.03,0.03)
+xline(upperThreshold,'r--','LineWidth',2)
+xline(lowerThreshold,'r--','LineWidth',2)
+xlabel("speed scores (r)")
+ylabel("probability (%)")
+xlim([-maxScore maxScore])
+title({"Histogram of null versus single speed score", "All mice all units", nShuffles + " shuffles per unit, " + minimumShiftSec + " sec minimum shift"})
+legend({'null distribution','observed scores','2.5 and 97.5 %iles of null'},'Location','northwest')
+% Save histogram
+saveas(gcf, saveFigDir + "\" + "all_mice_speed_score_histogram_singleexample" + ".svg")
+
+
 
 %% PART 3: Plot histogram for CA1 units only
 disp("Starting PART THREE. Generating null vs. observed speed score histograms.")

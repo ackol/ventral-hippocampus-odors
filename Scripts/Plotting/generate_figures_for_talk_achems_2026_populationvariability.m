@@ -15,8 +15,8 @@
 % Padmanabhan Lab, University of Rochester School of Medicine
 % PI contact email: krishnan_padmanabhan@urmc.rochester.edu
 % Script first created: October 1, 2024 (Version 1.0)
-% Script last updated: November 11, 2025
-% Version 3.0. 
+% Script last updated: April 19, 2026
+% Version 3.1. 
 % (Note: Version 1.0 was titled
 % "generate_figures_for_talk_sfn_2024_populationvariability.m"; 
 % Version 2.0 was titled
@@ -40,6 +40,8 @@ load(fullfile(path,file),"medianChangeInRateConcat","medianDeltaRate","nUnitsPer
 load(fullfile(path,file),"allUnitInfo","totalUnits","mice","nMice"); 
 
 nOdorantsPerUnit = 12;
+
+saveFigDir = uigetdir(baseDir,"Select folder to save output figures");
 
 clear file path
 
@@ -81,46 +83,38 @@ for iRow = 1:nRegions
 end
 
 
-% vCA1
-% get tuned vCA1 units only
-vCA1rowIndices = significantResults.("Anatomical Abbreviation")=="vCA1";
-vCA1significantResults = significantResults(vCA1rowIndices,:);
-nUnitsVCA1 = sum(cellfun(@(f) isequal(allUnitInfo.(f).info.("anatomicAbbrev"), "vCA1"), fields));
-nUnitsVCA1OdorTuned = length(unique(vCA1significantResults.Mouse + vCA1significantResults.("Unit #")));
-% get median delta rate for all vCA1 units (i.e. all unit-odor pairs),
+% CA1
+% get tuned CA1 (vCA1 and iCA1) units only
+CA1rowIndices = significantResults.("Anatomical Abbreviation")=="iCA1" | ...
+    significantResults.("Anatomical Abbreviation")=="vCA1";
+CA1significantResults = significantResults(CA1rowIndices,:);
+nUnitsCA1 = sum(cellfun(@(f) isequal(allUnitInfo.(f).info.("anatomicAbbrev"), "iCA1"), fields)) + ...
+    sum(cellfun(@(f) isequal(allUnitInfo.(f).info.("anatomicAbbrev"), "vCA1"), fields));
+nUnitsCA1OdorTuned = length(unique(CA1significantResults.Mouse + CA1significantResults.("Unit #")));
+% get median delta rate for all CA1 units (i.e. all unit-odor pairs),
 % including negative controls
-vCA1medianDeltaRate = medianChangeInRateConcat(regions == "vCA1",:);
+CA1medianDeltaRate = [medianChangeInRateConcat(regions == "iCA1",:) ; medianChangeInRateConcat(regions == "vCA1",:)];
 % get median delta rate for tuned vCA1-odor pairs
-vCA1significantMedianDeltaRate = nan(height(vCA1significantResults),1);
-for iPair = 1:height(vCA1significantResults)
-    % mouse = vCA1significantResults.Mouse(iPair);
-    % odorIndex = find(odorantsOrderedPanelC==vCA1significantResults.Odorant(iPair));
-    % unit = vCA1significantResults.("Unit #")(iPair);
-    %vCA1significantMedianDeltaRate(iPair) = medianDeltaRate.(mouse)(unit,odorIndex);
-    vCA1significantMedianDeltaRate(iPair) = vCA1significantResults.medianChangeRate(iPair);
+CA1significantMedianDeltaRate = nan(height(CA1significantResults),1);
+for iPair = 1:height(CA1significantResults)
+    CA1significantMedianDeltaRate(iPair) = CA1significantResults.medianChangeRate(iPair);
 end
 
 
 % CA3
 % get tuned CA3 units only
-CA3rowIndices = significantResults.("Anatomical Abbreviation")=="dCA3" | ...
-    significantResults.("Anatomical Abbreviation")=="iCA3" | ...
+CA3rowIndices = significantResults.("Anatomical Abbreviation")=="iCA3" | ...
     significantResults.("Anatomical Abbreviation")=="vCA3";
 CA3significantResults = significantResults(CA3rowIndices,:);
-nUnitsCA3 = sum(cellfun(@(f) isequal(allUnitInfo.(f).info.("anatomicAbbrev"), "dCA3"), fields)) +...
-    sum(cellfun(@(f) isequal(allUnitInfo.(f).info.("anatomicAbbrev"), "iCA3"), fields)) + ...
+nUnitsCA3 = sum(cellfun(@(f) isequal(allUnitInfo.(f).info.("anatomicAbbrev"), "iCA3"), fields)) + ...
     sum(cellfun(@(f) isequal(allUnitInfo.(f).info.("anatomicAbbrev"), "vCA3"), fields));
 nUnitsCA3OdorTuned = length(unique(CA3significantResults.Mouse + CA3significantResults.("Unit #")));
 % get median delta rate for all CA3 units (i.e. all unit-odor pairs),
 % including negative controls
-CA3medianDeltaRate = [medianChangeInRateConcat(regions == "dCA3",:);medianChangeInRateConcat(regions == "iCA3",:) ; medianChangeInRateConcat(regions == "vCA3",:)];
+CA3medianDeltaRate = [medianChangeInRateConcat(regions == "iCA3",:) ; medianChangeInRateConcat(regions == "vCA3",:)];
 % get median delta rate for tuned CA3-odor pairs
 CA3significantMedianDeltaRate = nan(height(CA3significantResults),1);
 for iPair = 1:height(CA3significantResults)
-    % mouse = CA3significantResults.Mouse(iPair);
-    % odorIndex = find(odorantsOrderedPanelC==CA3significantResults.Odorant(iPair));
-    % unit = CA3significantResults.("Unit #")(iPair);
-    % CA3significantMedianDeltaRate(iPair) = medianDeltaRate.(mouse)(unit,odorIndex);
     CA3significantMedianDeltaRate(iPair) = CA3significantResults.medianChangeRate(iPair);
 end
 
@@ -136,10 +130,6 @@ DGmedianDeltaRate = medianChangeInRateConcat(regions == "DG",:);
 % get median delta rate for tuned CA3-odor pairs
 DGsignificantMedianDeltaRate = nan(height(DGsignificantResults),1);
 for iPair = 1:height(DGsignificantResults)
-    % mouse = DGsignificantResults.Mouse(iPair);
-    % odorIndex = find(odorantsOrderedPanelC==DGsignificantResults.Odorant(iPair));
-    % unit = DGsignificantResults.("Unit #")(iPair);
-    % DGsignificantMedianDeltaRate(iPair) = medianDeltaRate.(mouse)(unit,odorIndex);
     DGsignificantMedianDeltaRate(iPair) = DGsignificantResults.medianChangeRate(iPair);
 end
 
@@ -147,7 +137,7 @@ end
 
 regionsToPlot = ["vCA1","CA3","DG"];
 figure()
-barh(regionsToPlot, [nUnitsVCA1 nUnitsCA3 nUnitsDG])
+barh(regionsToPlot, [nUnitsCA1 nUnitsCA3 nUnitsDG])
 title("Number of recorded  units")
 xlabel({"number of units","(n)"})
 
@@ -168,9 +158,12 @@ xlabel({"number of units","(n)"})
 
 regionsToPlot = ["vCA1","CA3","DG"];
 figure()
-barh(regionsToPlot, [nUnitsVCA1OdorTuned/nUnitsVCA1 nUnitsCA3OdorTuned/nUnitsCA3 nUnitsDGOdorTuned/nUnitsDG])
+barh(regionsToPlot, [nUnitsCA1OdorTuned/nUnitsCA1 nUnitsCA3OdorTuned/nUnitsCA3 nUnitsDGOdorTuned/nUnitsDG])
 title("Fraction of units that are odor tuned")
 xlabel({"percentage of units","%"})
+
+saveas(gcf, saveFigDir + "\" + "bargraph_fraction_units_odor_tuned_per_region" + ".svg")
+
 
 %% Plot fraction of neurons that are tuned to neurons per subdivided regions
 
@@ -193,6 +186,11 @@ xlabel({"percentage of units","%"})
 %% Compute chi-squared test of independence
 
 
+% Use online calculator
+
+%% Compute pair-wise z test with bonferroni correction
+% Use online calculator
+
 
 %% Examine distribution of delta rates (for all odor-unit pairs) between anatomic regions
 
@@ -208,8 +206,8 @@ xlimits = [-5 5];
 figure(300)
 sgtitle("Distribution of all odor-pre median change in firing rates")
 subplot(3,1,1)
-histogram(vCA1medianDeltaRate,bins,'Normalization','probability','DisplayStyle','bar','LineWidth',1)
-title("vCA1")
+histogram(CA1medianDeltaRate,bins,'Normalization','probability','DisplayStyle','bar','LineWidth',1)
+title("CA1")
 %xlabel("median change in FR (Hz)")
 if yLog == true
     ylabel("probability (log)")
@@ -249,19 +247,104 @@ end
 if trimXaxis == true
     xlim(xlimits)
 end
-%legend(["vCA1" "CA3" "DG"])
+%legend(["CA1" "CA3" "DG"])
+%saveas(gcf, saveFigDir + "\" + "compare_histograms_median_deltaFR_across_regions" + ".svg")
+
 
 % Run Kruskal-Wallis test to assess if medians of the distribution differ
-vCA1medianDeltaRateVec = vCA1medianDeltaRate(:);
+CA1medianDeltaRateVec = CA1medianDeltaRate(:);
 CA3medianDeltaRateVec = CA3medianDeltaRate(:);
 DGmedianDeltaRateVec = DGmedianDeltaRate(:);
-allMedians = [vCA1medianDeltaRateVec; CA3medianDeltaRateVec; DGmedianDeltaRateVec];
-regionsAll = [ones(size(vCA1medianDeltaRateVec)); 2*ones(size(CA3medianDeltaRateVec)); 3*ones(size(DGmedianDeltaRateVec))];
+allMedians = [CA1medianDeltaRateVec; CA3medianDeltaRateVec; DGmedianDeltaRateVec];
+regionsAll = [ones(size(CA1medianDeltaRateVec)); 2*ones(size(CA3medianDeltaRateVec)); 3*ones(size(DGmedianDeltaRateVec))];
 
 [p,tbl,stats] = kruskalwallis(allMedians,regionsAll);
 [c, m, h, gnames] = multcompare(stats, 'CriticalValueType', 'dunn-sidak');
 
 %% Plot fraction of positive vs. negative response
+
+nDG = length(DGsignificantMedianDeltaRate);
+negativeDG = sum(DGsignificantMedianDeltaRate(:) < 0);
+negativeDGpercent = negativeDG/nDG;
+
+positiveDG = sum(DGsignificantMedianDeltaRate(:) > 0);
+positiveDGpercent = positiveDG/nDG;
+
+nCA3 = length(CA3significantMedianDeltaRate);
+negativeCA3 = sum(CA3significantMedianDeltaRate(:) < 0);
+negativeCA3percent = negativeCA3/nCA3;
+
+positiveCA3 = sum(CA3significantMedianDeltaRate(:) > 0);
+positiveCA3percent = positiveCA3/nCA3;
+
+nCA1 = length(CA1significantMedianDeltaRate);
+negativeCA1 = sum(CA1significantMedianDeltaRate(:) < 0);
+negativeCA1percent = negativeCA1/nCA1;
+
+positiveCA1 = sum(CA1significantMedianDeltaRate(:) > 0);
+positiveCA1percent = positiveCA1/nCA1;
+
+figure()
+barh(["CA1","CA3","DG"],[-negativeCA1percent positiveCA1percent; -negativeCA3percent positiveCA3percent; -negativeDGpercent positiveDGpercent],'stacked')
+xlabel("percent (%)")
+
+saveas(gcf, saveFigDir + "\" + "percentpositivenegativedeltaratesignificantacrossregions" + ".svg")
+
+%% Compare proportions of increased vs decreased firing rate between regions
+
+% Example:
+Observed = [positiveDG negativeDG; positiveCA3 negativeCA3; positiveCA1 negativeCA1]; % 3 populations, 2 categories
+% Row totals, Col totals, Grand total
+rTotal = sum(Observed, 2);
+cTotal = sum(Observed, 1);
+n = sum(Observed, 'all');
+% Calculate expected frequencies
+Expected = (rTotal * cTotal) / n;
+% Chi-square statistic
+chi2stat = sum((Observed - Expected).^2 ./ Expected, 'all');
+% Degrees of freedom
+df = (size(Observed,1)-1) * (size(Observed,2)-1);
+% P-value
+p = 1 - chi2cdf(chi2stat, df);
+
+%% Perform z tests to compare pairs of regions modulation direction
+
+[z12, p12] = prop_ztest(Observed(1,1), sum(Observed(1,:)), Observed(2,1), sum(Observed(2,:)));
+[z13, p13] = prop_ztest(Observed(1,1), sum(Observed(1,:)), Observed(3,1), sum(Observed(3,:)));
+[z23, p23] = prop_ztest(Observed(2,1), sum(Observed(2,:)), Observed(3,1), sum(Observed(3,:)));
+
+
+%% Compare proportions of fraction of tuned units between regions
+
+nUnitsCA1NotTuned = nUnitsCA1 - nUnitsCA1OdorTuned;
+nUnitsCA3NotTuned = nUnitsCA3 - nUnitsCA3OdorTuned;
+nUnitsDGNotTuned = nUnitsDG - nUnitsDGOdorTuned;
+
+% Example:
+Observed = [nUnitsDGOdorTuned nUnitsDGNotTuned; nUnitsCA3OdorTuned nUnitsCA3NotTuned; nUnitsCA1OdorTuned nUnitsCA1NotTuned]; % 3 populations, 2 categories
+% Row totals, Col totals, Grand total
+rTotal = sum(Observed, 2);
+cTotal = sum(Observed, 1);
+n = sum(Observed, 'all');
+% Calculate expected frequencies
+Expected = (rTotal * cTotal) / n;
+% Chi-square statistic
+chi2stat = sum((Observed - Expected).^2 ./ Expected, 'all');
+% Degrees of freedom
+df = (size(Observed,1)-1) * (size(Observed,2)-1);
+% P-value
+p = 1 - chi2cdf(chi2stat, df);
+
+%% Perform z tests to compare pairs of regions modulation direction
+
+[z12, p12] = prop_ztest(Observed(1,1), sum(Observed(1,:)), Observed(2,1), sum(Observed(2,:)));
+[z13, p13] = prop_ztest(Observed(1,1), sum(Observed(1,:)), Observed(3,1), sum(Observed(3,:)));
+[z23, p23] = prop_ztest(Observed(2,1), sum(Observed(2,:)), Observed(3,1), sum(Observed(3,:)));
+
+
+%% Plot fraction of positive vs. negative response of odor tuning in speed cells vs. non-speed cells
+
+
 
 
 
@@ -269,7 +352,9 @@ regionsAll = [ones(size(vCA1medianDeltaRateVec)); 2*ones(size(CA3medianDeltaRate
 
 % Significant unit-odor pairs only
 
-bins = [-7.5:1:18.5];
+minDelta = min([CA1significantMedianDeltaRate(:); CA3significantMedianDeltaRate(:); DGsignificantMedianDeltaRate(:)]);
+maxDelta = max([CA1significantMedianDeltaRate(:); CA3significantMedianDeltaRate(:); DGsignificantMedianDeltaRate(:)]);
+bins = [-9:1:21];
 binCenters = (bins(1:end-1)+ bins(2:end))/2;
 nBins = length(bins)-1;
 clim([bins(1) bins(end)])
@@ -281,17 +366,17 @@ trimXaxis = false;
 xlimits = [bins(1) bins(end)];
 xlimitsTrim = [-5 5];
 %ylimits = [0 0.45]; % for probability setting
-ylimits = [0 45]; % for percent setting
+ylimits = [0 55]; % for percent setting
 lineWidth = 1.5;
 
-figure(300)
+figure()
 sgtitle("Distribution of significant odor-pre median change in firing rates")
 subplot(3,1,3)
-h = histogram(vCA1significantMedianDeltaRate,bins,'Normalization','percent','DisplayStyle','bar','LineWidth',1);
+h = histogram(CA1significantMedianDeltaRate,bins,'Normalization','percent','DisplayStyle','bar','LineWidth',1);
 b = bar(binCenters,h.Values,1,'LineWidth',lineWidth);
 b.FaceColor = 'flat';
 b.CData = cmNew;
-title("vCA1")
+title("CA1")
 %xlabel("median change in FR (Hz)")
 if yLog == true
     ylabel("probability (log)")
@@ -346,21 +431,21 @@ if trimXaxis == true
 else
     xlim(xlimits)
 end
-%legend(["vCA1" "CA3" "DG"])
-
+%legend(["CA1" "CA3" "DG"])
+saveas(gcf, saveFigDir + "\" + "compare_histograms_median_deltaFR_significantonly_across_regions" + ".svg")
 
 % plot on single plot
 figure()
-histogram(vCA1significantMedianDeltaRate,bins,'Normalization','probability','DisplayStyle','bar','FaceAlpha',0.5,'Orientation','horizontal','LineWidth',1)
+histogram(CA1significantMedianDeltaRate,bins,'Normalization','probability','DisplayStyle','bar','FaceAlpha',0.5,'Orientation','horizontal','LineWidth',1)
 hold on
 histogram(CA3significantMedianDeltaRate,bins,'Normalization','probability','DisplayStyle','bar','FaceAlpha',0.5,'Orientation','horizontal','LineWidth',1)
 histogram(DGsignificantMedianDeltaRate,bins,'Normalization','probability','DisplayStyle','bar','FaceAlpha',0.5,'Orientation','horizontal','LineWidth',1)
-legend(["vCA1", "CA3","DG"])
+legend(["CA1", "CA3","DG"])
 title("distributions of median change in rate for tuned units only")
 
 % Run Kruskal-Wallis test to assess if medians of the distribution differ
-allSigMedians = [vCA1significantMedianDeltaRate; CA3significantMedianDeltaRate; DGsignificantMedianDeltaRate];
-regionsSig = [ones(size(vCA1significantMedianDeltaRate)); 2*ones(size(CA3significantMedianDeltaRate)); 3*ones(size(DGsignificantMedianDeltaRate))];
+allSigMedians = [CA1significantMedianDeltaRate; CA3significantMedianDeltaRate; DGsignificantMedianDeltaRate];
+regionsSig = [ones(size(CA1significantMedianDeltaRate)); 2*ones(size(CA3significantMedianDeltaRate)); 3*ones(size(DGsignificantMedianDeltaRate))];
 
 [p,tbl,stats] = kruskalwallis(allSigMedians,regionsSig);
 [c, m, h, gnames] = multcompare(stats, 'CriticalValueType', 'dunn-sidak');
@@ -383,7 +468,7 @@ totalSignificantPerOdorantTable = sortrows(totalSignificantPerOdorantTable,"Coun
 % odorant (across the vCA1 population)
 totalvCA1SignificantPerOdorant = nan(1,length(odorants));
 for i = 1:length(odorants)
-    totalvCA1SignificantPerOdorant(i) = sum(string(vCA1significantResults.Odorant)==odorants{i});
+    totalvCA1SignificantPerOdorant(i) = sum(string(CA1significantResults.Odorant)==odorants{i});
 end
 totalvCA1SignificantPerOdorantTable = table(odorants,totalvCA1SignificantPerOdorant');
 totalvCA1SignificantPerOdorantTable.Properties.VariableNames([1 2]) = {'Odorants','Count'};
@@ -639,7 +724,7 @@ save(baseDir + "\" + "odortuning_heatmap_variables.mat","medianChangeInRateConca
 
 
 
-%% Plot sparsity versus direction of tuning for significant units only
+%% Compute sparsity versus direction of tuning for significant units only
 
 % get the mean magnitude of response (for ALL units) and the sparsity
 meanMagnitudeEveryUnit = mean(medianChangeInRateConcatAnatomicalSort,2);
@@ -663,11 +748,11 @@ subplot(1,2,1)
 histogram(sparsityPerUnit)
 subplot(1,2,2)
 histogram(sparsityEveryUnit)
-%%
+
 indicesCA3 = unitLocationsAllMiceSorted.("anatomical location")=="vCA3" | unitLocationsAllMiceSorted.("anatomical location")=="iCA3";
 indicesCA1 = unitLocationsAllMiceSorted.("anatomical location")=="vCA1" | unitLocationsAllMiceSorted.("anatomical location")=="iCA1";
 indicesDG = unitLocationsAllMiceSorted.("anatomical location")=="DG";
-%%
+%% all units all odors vs. significant units all odors vs. significant unit-odor pairs
 yMin = -0.05;
 yMax = 0.7; 
 
@@ -699,15 +784,17 @@ ylabel("fraction of odor panel")
 title("Significant unit-odor pairs only")
 ylim([yMin yMax])
 
-%%
+%% each region in own plot - without jitter
 
 xMin = -2;
 xMax = 4;
+transparency = 0.3;
+markersize = 100;
 
 figure()
 sgtitle("All units, all odors")
 subplot(3,1,1)
-scatter(meanMagnitudeEveryUnit(indicesDG),sparsityEveryUnit(indicesDG)/11,'m','filled','MarkerFaceAlpha',0.5)
+scatter(meanMagnitudeEveryUnit(indicesDG),sparsityEveryUnit(indicesDG)/11,markersize,'m','filled','MarkerFaceAlpha',transparency)
 hold on
 xlabel("mean response magnitude (Hz)")
 ylabel("fraction of odor panel")
@@ -716,7 +803,7 @@ ylim([yMin yMax])
 xlim([xMin xMax])
 
 subplot(3,1,2)
-scatter(meanMagnitudeEveryUnit(indicesCA3),sparsityEveryUnit(indicesCA3)/11,'g','filled','MarkerFaceAlpha',0.5)
+scatter(meanMagnitudeEveryUnit(indicesCA3),sparsityEveryUnit(indicesCA3)/11,markersize,'g','filled','MarkerFaceAlpha',transparency)
 xlabel("mean response magnitude (Hz)")
 ylabel("fraction of odor panel")
 title("CA3")
@@ -724,14 +811,60 @@ ylim([yMin yMax])
 xlim([xMin xMax])
 
 subplot(3,1,3)
-scatter(meanMagnitudeEveryUnit(indicesCA1),sparsityEveryUnit(indicesCA1)/11,'b','filled','MarkerFaceAlpha',0.5)
+scatter(meanMagnitudeEveryUnit(indicesCA1),sparsityEveryUnit(indicesCA1)/11,markersize,'b','filled','MarkerFaceAlpha',transparency)
 xlabel("mean response magnitude (Hz)")
 ylabel("fraction of odor panel")
 title("CA1")
 ylim([yMin yMax])
 xlim([xMin xMax])
 
-%%
+%% each region in own plot - with jitter
+
+xMin = -2;
+xMax = 4;
+transparency = 0.3;
+jitterAmount = 0.05;
+markersize = 100;
+
+figure()
+sgtitle("All units, all odors")
+subplot(3,1,1)
+yData = sparsityEveryUnit(indicesDG);
+jitterValuesY = 2*(rand(size(yData))-0.5)*jitterAmount;
+jitteredYvalues = sparsityEveryUnit(indicesDG)/11+jitterValuesY;
+jitteredYvalues(jitteredYvalues < 0 ) = 0;
+scatter(meanMagnitudeEveryUnit(indicesDG),jitteredYvalues,markersize,'m','filled','MarkerFaceAlpha',transparency,'MarkerEdgeColor','k')
+hold on
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+title("DG")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+subplot(3,1,2)
+yData = sparsityEveryUnit(indicesCA3);
+jitterValuesY = 2*(rand(size(yData))-0.5)*jitterAmount;
+jitteredYvalues = sparsityEveryUnit(indicesCA3)/11+jitterValuesY;
+jitteredYvalues(jitteredYvalues < 0 ) = 0;
+scatter(meanMagnitudeEveryUnit(indicesCA3),jitteredYvalues,markersize,'g','filled','MarkerFaceAlpha',transparency,'MarkerEdgeColor','k')
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+title("CA3")
+ylim([yMin yMax])
+xlim([xMin xMax])
+
+subplot(3,1,3)
+yData = sparsityEveryUnit(indicesCA1);
+jitterValuesY = 2*(rand(size(yData))-0.5)*jitterAmount;
+jitteredYvalues = sparsityEveryUnit(indicesCA1)/11+jitterValuesY;
+jitteredYvalues(jitteredYvalues < 0 ) = 0;
+scatter(meanMagnitudeEveryUnit(indicesCA1),jitteredYvalues,markersize,'b','filled','MarkerFaceAlpha',transparency,'MarkerEdgeColor','k')
+xlabel("mean response magnitude (Hz)")
+ylabel("fraction of odor panel")
+title("CA1")
+ylim([yMin yMax])
+xlim([xMin xMax])
+%% 2d histogram
 Xedges = -2:0.5:4;
 Yedges = -0.05:0.08:0.7;
 
@@ -769,9 +902,8 @@ ylabel("fraction of odor panel")
 ylim([yMin yMax])
 xlim([xMin xMax])
 
-%%
 
-%%
+%% gaussian smoothed 2d histogram
 Xedges = -2:0.2:4;
 Yedges = -0.05:0.05:0.7;
 
@@ -838,7 +970,7 @@ ylabel("fraction of odor panel")
 ylim([yMin yMax])
 xlim([xMin xMax])
 
-%% 
+%% concentric contours
 
 % Can see okay from this one, but it gets smoothed past zero, and you lose the
 % sparse density on the edges (which is part of what distinguishes the
@@ -870,7 +1002,7 @@ contour(xi, yi, reshape(f3,size(xi)), 'k', 'LineWidth', 1.5);
 
 legend('CA1','CA3','DG');
 
-%%
+%% overlapping smoothed heatmap
 % Totally not able to distinguish the three groups (since their centers of
 % density overlap)
 figure; hold on;
@@ -885,7 +1017,7 @@ h2.FaceAlpha = 0.3;
 h3.FaceAlpha = 0.3;
 
 
-%%
+%% contour not working
 % Not sure why this just totally isn't working??
 [n1,~,~] = histcounts2(x1,y1,20);
 [n2,~,~] = histcounts2(x2,y2,20);
@@ -1106,25 +1238,25 @@ xticks([0:6])
 
 % clear responsive units
 
-%% vCA1 only
+%% CA1 only
 
 % Remove significant (unit, odorant) pairs where the odorant being
 % responded to is a control condition
-vCA1significantResultsNoControls = vCA1significantResults;
-vCA1significantResultsNoControls(vCA1significantResultsNoControls.Odorant == "blank",:) = [];
+CA1significantResultsNoControls = CA1significantResults;
+CA1significantResultsNoControls(CA1significantResultsNoControls.Odorant == "air",:) = [];
 
-vCA1significantResultsNoControls.CombinedUnitName = strcat(vCA1significantResultsNoControls.Mouse,string(vCA1significantResultsNoControls.("Unit #")));
-responsiveUnits = unique(vCA1significantResultsNoControls.CombinedUnitName);
+CA1significantResultsNoControls.CombinedUnitName = strcat(CA1significantResultsNoControls.Mouse,string(CA1significantResultsNoControls.("Unit #")));
+responsiveUnits = unique(CA1significantResultsNoControls.CombinedUnitName);
 numSignificantOdorantsPerUnit = nan(length(responsiveUnits),1);
 for i = 1:length(responsiveUnits)
-    numSignificantOdorantsPerUnit(i) = sum(vCA1significantResultsNoControls.CombinedUnitName==responsiveUnits(i));
+    numSignificantOdorantsPerUnit(i) = sum(CA1significantResultsNoControls.CombinedUnitName==responsiveUnits(i));
 end
 % add in all the units that don't respond to any odorant stimuli
-unresponsiveUnits = nUnitsVCA1 - length(responsiveUnits);
+unresponsiveUnits = nUnitsCA1 - length(responsiveUnits);
 
 numResponsiveOdorantsPerUnit = [numSignificantOdorantsPerUnit' zeros(1,unresponsiveUnits)];
 
-plotOnlyTunedNeurons = false;
+plotOnlyTunedNeurons = true;
 % enable this line if you want to plot the fraction of tuned neurons that
 % respond to k (>=1) odors. Otherwise, deactivate this line if you want to
 % plot the fraction of all neurons that respond to k (>=0) odors.
@@ -1138,13 +1270,15 @@ end
 %binEdges = [0.5:1:max(numResponsiveOdorantsPerUnit)+1];
 figure()
 H = histogram(numResponsiveOdorantsPerUnit,'BinEdges',binEdges,'Normalization','probability','FaceColor','k');
-ylim([0 0.7])
+ylim([0 0.8])
 xlabel('number of odorants (k)')
 ylabel('probability')
-title({'probability of a tuned vCA1 unit responding to k / 11 odorants'})
+title({'probability of a tuned CA1 unit responding to k / 11 odorants'})
 set(gca,'fontsize', 18)
 set(gca, 'TickDir', 'out')
 xticks([0:6])
+
+saveas(gcf, saveFigDir + "\" + "CA1_k_odorants" + ".svg")
 
 
 %% CA3 only
@@ -1152,7 +1286,7 @@ xticks([0:6])
 % Remove significant (unit, odorant) pairs where the odorant being
 % responded to is a control condition
 CA3significantResultsNoControls = CA3significantResults;
-CA3significantResultsNoControls(CA3significantResultsNoControls.Odorant == "blank",:) = [];
+CA3significantResultsNoControls(CA3significantResultsNoControls.Odorant == "air",:) = [];
 
 CA3significantResultsNoControls.CombinedUnitName = strcat(CA3significantResultsNoControls.Mouse,string(CA3significantResultsNoControls.("Unit #")));
 responsiveUnits = unique(CA3significantResultsNoControls.CombinedUnitName);
@@ -1165,7 +1299,7 @@ unresponsiveUnits = nUnitsCA3 - length(responsiveUnits);
 
 numResponsiveOdorantsPerUnit = [numSignificantOdorantsPerUnit' zeros(1,unresponsiveUnits)];
 
-plotOnlyTunedNeurons = false;
+plotOnlyTunedNeurons = true;
 % enable this line if you want to plot the fraction of tuned neurons that
 % respond to k (>=1) odors. Otherwise, deactivate this line if you want to
 % plot the fraction of all neurons that respond to k (>=0) odors.
@@ -1179,13 +1313,16 @@ end
 %binEdges = [0.5:1:max(numResponsiveOdorantsPerUnit)+1];
 figure()
 H = histogram(numResponsiveOdorantsPerUnit,'BinEdges',binEdges,'Normalization','probability','FaceColor','k');
-ylim([0 0.7])
+ylim([0 0.8])
 xlabel('number of odorants (k)')
 ylabel('probability')
 title({'probability of a tuned CA3 unit responding to k / 11 odorants'})
 set(gca,'fontsize', 18)
 set(gca, 'TickDir', 'out')
 xticks([0:6])
+
+saveas(gcf, saveFigDir + "\" + "CA3_k_odorants" + ".svg")
+
 
 %% DG only
 
@@ -1206,7 +1343,7 @@ unresponsiveUnits = nUnitsDG - length(responsiveUnits);
 
 numResponsiveOdorantsPerUnit = [numSignificantOdorantsPerUnit' zeros(1,unresponsiveUnits)];
 
-plotOnlyTunedNeurons = false;
+plotOnlyTunedNeurons = true;
 % enable this line if you want to plot the fraction of tuned neurons that
 % respond to k (>=1) odors. Otherwise, deactivate this line if you want to
 % plot the fraction of all neurons that respond to k (>=0) odors.
@@ -1220,13 +1357,16 @@ end
 %binEdges = [0.5:1:max(numResponsiveOdorantsPerUnit)+1];
 figure()
 H = histogram(numResponsiveOdorantsPerUnit,'BinEdges',binEdges,'Normalization','probability','FaceColor','k');
-ylim([0 0.7])
+ylim([0 0.8])
 xlabel('number of odorants (k)')
 ylabel('probability')
 title({'probability of a tuned DG unit responding to k / 11 odorants'})
 set(gca,'fontsize', 18)
 set(gca, 'TickDir', 'out')
 xticks([0:6])
+
+saveas(gcf, saveFigDir + "\" + "DG_k_odorants" + ".svg")
+
 
 %% Get whether each responsive unit-odorant pair is excitatory or inhibitory
 
@@ -1250,10 +1390,10 @@ set(gca,'fontsize', 18)
 
 %% vCA1 only
 
-upmodulationCount = sum(vCA1significantResults.Direction == "increase");
-downmodulationCount = sum(vCA1significantResults.Direction == "decrease");
+upmodulationCount = sum(CA1significantResults.Direction == "increase");
+downmodulationCount = sum(CA1significantResults.Direction == "decrease");
 
-totalUnitOdorPairs = height(vCA1significantResults);
+totalUnitOdorPairs = height(CA1significantResults);
 
 upmodulationPercentage = upmodulationCount / totalUnitOdorPairs *100;
 downmodulationPercentage = downmodulationCount / totalUnitOdorPairs *100;
@@ -1360,10 +1500,10 @@ title({'Response direction', '(excluding negative controls)'})
 set(gca,'fontsize', 18)
 
 %% vCA1 only
-upmodulationCountNoControls = sum(vCA1significantResultsNoControls.Direction == "increase");
-downmodulationCountNoControls = sum(vCA1significantResultsNoControls.Direction == "decrease");
+upmodulationCountNoControls = sum(CA1significantResultsNoControls.Direction == "increase");
+downmodulationCountNoControls = sum(CA1significantResultsNoControls.Direction == "decrease");
 
-totalPairsNoControls = height(vCA1significantResultsNoControls);
+totalPairsNoControls = height(CA1significantResultsNoControls);
 
 upmodulationPercentageNoControls = upmodulationCountNoControls / totalPairsNoControls *100;
 downmodulationPercentageNoControls = downmodulationCountNoControls / totalPairsNoControls *100;
@@ -1497,3 +1637,18 @@ set(gca,'fontsize', 18)
 % colorbar
 % set(gca, 'TickDir', 'out')
 % set(gca,'fontsize', 18)
+
+%%
+
+function [z, pval] = prop_ztest(x1, n1, x2, n2)
+    p1 = x1 / n1;
+    p2 = x2 / n2;
+    
+    p_pool = (x1 + x2) / (n1 + n2);
+    
+    SE = sqrt(p_pool * (1 - p_pool) * (1/n1 + 1/n2));
+    
+    z = (p1 - p2) / SE;
+    
+    pval = 2 * (1 - normcdf(abs(z))); % two-tailed
+end
