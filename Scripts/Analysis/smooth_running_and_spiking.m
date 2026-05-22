@@ -6,7 +6,7 @@
 %       USER MUST SPECIFY VIA UI:
 %       (1) mouseID
 %       (2) base directory
-%       (3) [AK0xx]_smoothed_spike_rate_data.mat
+%       (3) [AK0xx]_aligned_phy_unit_data.mat
 %       (4) [AK0xx]_full_session_inst_velocity.mat
 %       (5) significantResultsAllMice.mat
 %       (6) directory in which to save outputs
@@ -41,8 +41,8 @@
 % Padmanabhan Lab, University of Rochester School of Medicine
 % PI contact email: krishnan_padmanabhan@urmc.rochester.edu
 % Script first created: April 10, 2026 (by Anna Kolstad)
-% Script last updated: April 12, 2026 (by Anna Kolstad)
-% Version 1.1
+% Script last updated: May 19, 2026 (by Anna Kolstad)
+% Version 1.2
 
 %% PART 01.0 - Provide user inputs (directory paths, smoothing parameters, etc.)
 clear vars
