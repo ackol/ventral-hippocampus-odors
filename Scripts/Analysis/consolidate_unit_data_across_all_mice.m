@@ -9,7 +9,6 @@
 %       (1) miceToAnalyze.mat
 %       (2) directory containing [AK0xx]_[Dx]_aligned_phy_unit_data.mat for all mice
 %       (3) output path for data structure
-%       (4) 
 %
 %
 %   Outputs:
@@ -24,7 +23,6 @@
 % Script first created: May 22, 2026 (Version 1.0)
 % Script last updated: May 22, 2026
 % Version 1.0
-
 
 %% STEP ONE: Load data and get parameters
 
