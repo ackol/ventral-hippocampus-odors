@@ -1,4 +1,4 @@
-% compare_spike_counts_before_vs_during_by_WSR.m - This 
+% get_intertrial_interval_mean_firing_rates.m - This 
 % script saves ... 
 %
 %   Inputs:
@@ -9,9 +9,7 @@
 %       (4) output path for data structures
 %
 %   Outputs:
-%       (1) [AK0xx]_sortedspikes_curated_medianchangeinrate.mat
-%       (2) [AK0xx]_sortedspikes_curated_WSRtestresults.mat
-%       (3) [AK0xx]_sortedspikes_curated_WSRtestresults_significant_alpha[#].mat
+%       (1) ...
 %
 %   Dependencies: none
 %
@@ -19,10 +17,10 @@
 % Author contact email: anna_kolstad@urmc.rochester.edu
 % Padmanabhan Lab, University of Rochester School of Medicine
 % PI contact email: krishnan_padmanabhan@urmc.rochester.edu
-% Script first created: September 13, 2024 (originally part of 
-% align_sorted_spikes_to_odor_delivery.m from Versions 1.0-4.0)
-% Script last updated: March 31, 2026
-% Version 5.0.
+% Script first created: April 28, 2026 (adapted from 
+% compare_spike_counts_before_vs_during_by_WSR.m Version 5.0)
+% Script last updated: April 28, 2026
+% Version 1.0.
 
 %% PART ONE: Load data and get parameters
 
@@ -40,10 +38,10 @@ baseDir = uigetdir('',"Select base directory for this animal.");
 
 % select path for output figures
 baseOutputPath = uigetdir(baseDir,"Select base directory in which to save outputs.");
-savedirStatisticalTests = baseOutputPath + "\" + "8 - statistical tests";
+saveDir = baseOutputPath + "\" + "firing rate statistics";
 % make new folder if it does not already exist
-if ~exist(savedirStatisticalTests,'dir')
-    mkdir(savedirStatisticalTests);
+if ~exist(saveDir,'dir')
+    mkdir(saveDir);
 end
 
 % load spikes_grouped_by_odor_trial.mat variable file
@@ -60,13 +58,97 @@ toc
 disp("Computing spike counts before and during odor delivery.")
 tic
 
+startIndex = pointsBefore-pointsDuring; % start counting spikes from 2 seconds in to trial, 
+onsetIndex = startIndex + pointsDuring;
+endIndex = onsetIndex + pointsDuring;
+
+% Remove the time during odor presentation
+spikeRasterITIs = spikeRaster;
+spikeRasterITIs(:,:,:,onsetIndex:(endIndex-1)) = [];
+nSamplePointsPerITI = size(spikeRasterITIs,4);
+nSamplePointsAllITI = nSamplePointsPerITI*nOdors*nTrialsPerOdor;
+
+% Define time bins to compute Fano Factor for
+timeBins = [0.01 0.05 0.1 0.25 0.5 1]; % seconds
+nBinSizes = length(timeBins);
+timeBinsSampPoints = timeBins*sampFreq;
+
+allCounts = cell(nBinSizes,nUnits);
+fanoFactors = nan(nBinSizes,nUnits);
+
+tic
+for iBinSize = 1:nBinSizes
+    disp("Processing bin size " + iBinSize + "/" + nBinSizes + "...")
+    for iUnit = 1:nUnits
+        thisUnitSpikeTrains = squeeze(spikeRasterITIs(:,:,iUnit,:));
+        thisUnitSpikeTrains2 = reshape(thisUnitSpikeTrains, nOdors*nTrialsPerOdor,nSamplePointsPerITI);
+        
+        binWidth = timeBinsSampPoints(iBinSize);
+        nBins = nSamplePointsPerITI / binWidth;
+
+        binnedCounts = nan(nTrialsPerOdor*nOdors, nBins);
+        for iTrial = 1:nTrialsPerOdor*nOdors
+            trialData = thisUnitSpikeTrains2(iTrial,:);
+            binnedCounts(iTrial,:) = sum(reshape(trialData,binWidth,nBins),1); 
+        end
+
+        allCountsThisUnit = binnedCounts(:);
+        allCounts{iBinSize,iUnit} = allCountsThisUnit;
+        fanoFactors(iBinSize,iUnit) = var(allCountsThisUnit) / mean(allCountsThisUnit);
+    end
+end
+toc
+
+%% Plot fano factors as a function of bin size
+
+figure()
+for iUnit = 1:nUnits
+    semilogx(timeBins,fanoFactors(:,iUnit),'o-','LineWidth',2,'MarkerSize',8);
+    hold on
+end
+yline(1,'--r','Poisson','LineWidth',1.5);
+xlabel("Bin size (s)")
+ylabel("Fano factor")
+set(gca,'FontSize',14)
+
+%% Plot spike count distribution versus Poisson distribution
+
+iBinSize = 1;
+iUnit = 1;
+
+countDistribution = allCounts{iBinSize,iUnit};
+edges = 0:1:(max(countDistribution)+1);
+figure()
+histogram(countDistribution,edges,'Normalization','probability','FaceAlpha',0.6)
+hold on;
+
+lambdaT = mean(countDistribution);
+xVals = 0:1:max(countDistribution);
+% Poisson PMF
+poissonPMF = poisspdf(xVals,lambdaT);
+
+% Overlay on histogram
+plot(xVals,poissonPMF,'r-o','LineWidth',2,'MarkerSize',6);
+xlabel('Spike count per bin')
+ylabel("probability")
+legend('Empirical','Poisson')
+title(sprintf('Spike Count Distribution (unit = %bin = %.0f ms, \\lambda T = %.2f)',timeBins(iBinSize)*1000,lambdaT));
+set(gca,'FontSize',14)
+
+%% Compute mean firing rate across all ITIs
+totalSpikeCountsITI = sum(spikeRasterITIs,4);
+totalSpikeCountsITI2 = sum(totalSpikeCountsITI,1);
+totalSpikeCountsITI3 = sum(totalSpikeCountsITI2,2);
+totalSpikeCountsPerUnit = squeeze(totalSpikeCountsITI3);
+
+meanITIfiringRate = totalSpikeCountsPerUnit./(nSamplePointsAllITI/sampFreq);
+
+
 % Preallocate memory for new data structure
 beforeCount = nan(nOdors, nTrialsPerOdor, nUnits); % Create empty 3D matrix for storing total count of spikes per trial, grouped by odorant identity
 duringCount = nan(nOdors, nTrialsPerOdor, nUnits); % Create empty 3D matrix for storing total count of spikes per trial, grouped by odorant identity
 
-startIndex = pointsBefore-pointsDuring; % start counting spikes from 2 seconds in to trial, 
-onsetIndex = startIndex + pointsDuring;
-endIndex = onsetIndex + pointsDuring;
+
 
 for iUnit = 1:nUnits
     disp("Processing unit #" + num2str(iUnit))
@@ -87,7 +169,7 @@ rateDiff = (duringCount - beforeCount)./timeDuring; % spikes / sec
 medianRateDiff = median(rateDiff,2); % # rows = # odorants; # columns = # trials; # z-stack = # units
 medianChangeInRate = squeeze(medianRateDiff)'; % spikes / sec
 
-save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_medianchangeinrate", "medianChangeInRate",'-v7.3');
+save(saveDir + "\" + mouseLabel + "_sortedspikes_curated_medianchangeinrate", "medianChangeInRate",'-v7.3');
 
 disp("Finished computing and saving median change in firing rate for ..." + ...
     "all unit-odorant pairs. PART THREE complete.")
@@ -227,17 +309,17 @@ disp("Saving statistical test p-values...")
 tic
 % Save p-values
 %save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_signtestresults", "signTestPValues","unitInfo",'-v7.3');
-save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_WSRtestresults", "wilcoxanSignedRankTestPValues","unitInfo",'-v7.3');
+save(saveDir + "\" + mouseLabel + "_sortedspikes_curated_WSRtestresults", "wilcoxanSignedRankTestPValues","unitInfo",'-v7.3');
 % Save unit-odor pairs with significant p-values
 %save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_signtestresults_significant_alpha"+num2str(alpha*100), "signTestSignificant","alpha",'-v7.3');
-save(savedirStatisticalTests + "\" + mouseLabel + "_sortedspikes_curated_WSRtestresults_significant_alpha"+num2str(alpha*100), "wsrTestSignificant","alpha",'-v7.3');
+save(saveDir + "\" + mouseLabel + "_sortedspikes_curated_WSRtestresults_significant_alpha"+num2str(alpha*100), "wsrTestSignificant","alpha",'-v7.3');
 toc
 disp("Done saving statistical test p-values.")
 
 disp("End of Script.")
 
 
-%% LOCAL FUNCTIONS
+%% LOCAL FUNCTIONS % Draft in progress, not complete
 
 function p = exactpairedpermutation(beforeCounts, duringCounts)
     nTrials = length(beforeCounts);
@@ -251,6 +333,8 @@ function p = exactpairedpermutation(beforeCounts, duringCounts)
         % Convert integer to binary sign vector
         bits = bitget(i,1:nTrials);
         signs = 2 * bits - 1; % convert 0/1 to -1/+1
-        nullStats(iPer
+        nullStats(iPerm+1) = mean(signs(L) .* diffs(:));
     end
+
+    p = mean(abs(nullStats))
 end
