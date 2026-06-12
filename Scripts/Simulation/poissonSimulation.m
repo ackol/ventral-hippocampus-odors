@@ -36,6 +36,7 @@ nFiles = 7;
 recordingDuration = nFiles * minPerFile * 60; % total recording duration in seconds
 experimentDuration = nTrials*(odorPresentationDuration + intertrialInterval); % (seconds) total duration of experiment trials
 paddingDuration = recordingDuration - experimentDuration; % (seconds) total duration of extra recording time included in analysis
+paddingStart = 60; % (seconds) out of the total duration of extra recording time included in the simulation, allocate 1 minute of it to the start (i.e. first odor presentation happens at 1 minute)
 nSamples = recordingDuration * sampleFreq; % total number of samples in recording
 
 % The following section of code loads in data from the empirical recordings, which 
@@ -86,20 +87,112 @@ k = 2;
 % Extract the quality metric thresholds from the empirical data
 isiViolPercentAllowed = empiricalUnitDataStruct.qualityMetricSettings.ISI.minViol;
 
-%% Run simulation
-% Simulate a short spike period without odor presentation 
+% USER INPUT (2): Use UI to select directory in which to save the simulated 
+% data structure
+savePath = uigetdir('','Select directory in which to save the simulated data structure:');
+
+%% Run odor simulation
+
+% Get odor sequence
+% IDEA: RATHER THAN GENERATING A LOT OF NEURAL POPULATIONS, I CAN GENERATE 
+% MANY ODOR SEQUENCES AND THEN COMPUTE STATISTICS OF A SINGLE SIMULATED
+% NEURAL POPULATION AGAINST MANY DIFFERENT ODOR SEQUENCES (SINCE WE ARE
+% MODELLING THE CASE IN WHICH TEHRE IS NO INTRINSIC RELATIONSHIP BETWEEN
+% ODORS AND SPIKING ACTIVITY)
+odorSequence = getRandomOdorSequence(nOdorants, nTrialsPerOdor);
+
+%%
+
+% Create a CA1_full_session_odor_sequence_matrix.mat variable
+% variables are: odorSeqMat
+
+% Create Odor Sequence Matrix
+disp("Simulating odor data...")
+
+odorSavePath = uigetdir(savePath, 'Select directory to save odor sequence...');
+
+%% Generate odorSeqRawMat (?? NEED TO EXAMINE WHAT THE FORMAT OF THIS IS??)
+% TO-DO
+% PROBABLY INCLUDES A CODE FOR THE ODOR ID'S
+% This is an Nx3 numeric matrix, where N is the number of odor stimuli that
+% were presented
+% --> Column 1: numeric odor label (1-12)
+% --> Column 2: Delay in delivery (seconds) 
+% --> Column 3: delivery duration (milliseconds) **NOTE: THE COLUMN ORDER IS
+% INCORRECTLY LABELLED IN THE HEADER OF EXTRACTSINGLEDAYRHDDATA.M
+odorSeqRawMat = [odorSequence', odorPresentationDuration*1000*ones(nTrials,1), intertrialInterval*ones(nTrials,1)];
+
+% Generate odorSignal vector (value of 1 represents ON and 0 represents OFF)
+singleOdorDelivery = [ones(1,odorPresentationDuration*sampleFreq) zeros(1,intertrialInterval*sampleFreq)];
+allOdorDeliveries = repmat(singleOdorDelivery,1,nTrials);
+odorSignal = [zeros(1,paddingStart*sampleFreq) allOdorDeliveries zeros(1,((paddingDuration-paddingStart)*sampleFreq))];
+
+% DECIMATED SEQUENCE MATRIX
+% Decimate the odor signal to get odor onsets in decimated frequency
+decimateFactor = 10;
+odorMetadata.parameters.decimate_factor = decimateFactor;
+deciOdorSignal = odorSignal(1:decimateFactor:end);
+
+% Compute the derivative of the odor signal to identify ON and OFF time
+% points
+diffOdorSignal = diff(deciOdorSignal);
+
+% Index value + 1 gives the first sample where odor is on
+toggleOdorOnIndex = find(diffOdorSignal == 1);
+
+% Index value gives the last sample where odor is on
+toggleOdorOffIndex = find(diffOdorSignal == -1);
+
+% Add the ON & OFF time index information to the odor sequence matrix
+deciOdorSeqMat = [odorSeqRawMat, (toggleOdorOnIndex+1)', toggleOdorOffIndex'];
+
+% NON-DECIMATED SEQUENCE MATRIX
+% Compute the derivative of the odor signal to identify ON and OFF time
+% points
+diffOdorSignal = diff(odorSignal);
+
+% Index value + 1 gives the first sample where odor is on
+toggleOdorOnIndex = find(diffOdorSignal == 1);
+
+% Index value gives the last sample where odor is on
+toggleOdorOffIndex = find(diffOdorSignal == -1);
+
+% Add the ON & OFF time index information to the odor sequence matrix
+odorSeqMat = [odorSeqRawMat, (toggleOdorOnIndex+1)', toggleOdorOffIndex'];
+
+% Retrieve the parameters of the odor sequence
+setSize = nTrials;
+nSets = ceil((nTrials)/setSize);
+nOdorsPerSet = 12;
+for iSet = 1:nSets
+    rows = (1:setSize) + (iSet-1)*setSize;
+    odorOffset = (iSet - 1) * nOdorsPerSet;
+    odorSeqMat(rows,1) = odorSeqMat(rows,1) + odorOffset;
+    deciOdorSeqMat(rows,1) = deciOdorSeqMat(rows,1) + odorOffset;
+end
+
+% Save the odor sequence matrix data
+sampFreq = sampleFreq;
+fullOdorSavePath = odorSavePath + "simulation" + "_" + "_full_session_odor_sequence_matrix";
+save(fullOdorSavePath, "odorSeqMat", "deciOdorSeqMat", "odorSignal", "sampFreq", '-v7.3')
+disp('Odor Sequence Matrix computed.');
+            
+
+%% Run spiking simulation
+% Simulate a short spike period without odor presentation OR assuming the
+% units have no odor tuning
 
 models = ["HomogenousPoisson", "PoissonWithRefractoryPeriod", "GammaRenewalKof2", "gamma with refractory period"];
 isiDurationCutoff = empiricalUnitDataStruct.qualityMetricSettings.ISI.timeWindow;
 
-useModel = models(1);
+useModel = models(2);
 
 % for debugging only
 useNUnits = 5;
 
 % create data structure for unit activity
 alignedUnitDataStruct = struct();
-for iUnit = 1:nUnits
+for iUnit = 1:useNUnits%nUnits
     alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).info.nSamples = nSamples;
     alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).info.nSpikes = nan; % populate later once spike train is generated
     alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).info.anatomicLocation = empiricalUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).info.anatomicLocation;
@@ -110,7 +203,7 @@ for iUnit = 1:nUnits
 end
 
 tic
-for iUnit = 1:nUnits
+for iUnit = 1:useNUnits%nUnits
     disp("Simulating firing of unit #" + iUnit + "...")
 
     % Homogeneous Poisson Simulation
@@ -191,6 +284,11 @@ for iUnit = 1:nUnits
 
 end
 toc
+
+% Save the simulated unit data structure to file 
+saveFileName = modelName + "_" + brainRegion + "_simulated_unit_data.mat";
+save(fullfile(savePath, saveFileName), "alignedUnitDataStruct", '-v7.3');
+
 
 % %% Plot summary figure for each unit (matching the format of the figures 
 % % generated by processphyunitdata.m)
@@ -317,7 +415,7 @@ colorMatrix = createpastelcolormatrix(nUnits, 1, 0);
 save(fullfile(savePath, "unitColorMatrix.mat"), "colorMatrix");
 
 tic
-for iUnit = 1:nUnits
+for iUnit = 1:useNUnits%nUnits
     
     disp("Plotting summary figure for unit #" + iUnit + "...")
 
@@ -373,10 +471,24 @@ for iUnit = 1:nUnits
     ylabel('number of 1 second bins')
     title({"Fano factor: " + tempFanoFactor})
     xValues = 0:tempMaxRate;
+    % Generate poisson distribution
     poissonDist = poisspdf(xValues,tempMeanFiringRate);
     poissonSum = poisscdf(tempMaxRate,tempMeanFiringRate);
     plot(xValues,poissonDist*poissonSum*nBins,'LineWidth',2)
-    legend("simulation","Poisson PDF")
+    if strcmp(modelName,models(2))
+        % NEED TO WORK ON THIS CODE IF WANT IT TO BE FUNCTIONAL
+        % GOAL IS TO PLOT THE THEORETICAL PDF FOR THE DEAD-TIME POISSON
+        % DISTRIBUTION
+        % % generate dead-time modified Poisson PDF
+        % t = linspace(0,tempMaxRate,round(tempMaxRate*(1000/3)));
+        % validInx = (t >= refractoryPeriodMillisec);
+        % poissonDeadTimePDF = tempMeanFiringRate * exp(-tempMeanFiringRate * (t(validInx) - refractoryPeriodMillisec))
+        % poissonDeadTimeDist = 
+        % poissonDeadTimeSum = 
+        % plot(xValues,poissonDeadTimeDist*poissonDeadTimeSum*nBins,'LineWidth',2)
+    else
+        legend("simulation","Poisson PDF")
+    end
     hold off
 
     % ===========================
@@ -819,12 +931,12 @@ xlim([0 experimentDuration])
 
 
 
-%% FUNCTION DEFINITONS
+%% LOCAL FUNCTION DEFINITONS
 
-% % Homogenous Poisson Simulation: Draw from Exponential ISI
-% function spikes = getspiketrainhomogeneouspoisson(meanFiringRateHz, sampleRateHz, durationSec)
+% % Homogenous Poisson simulation with refractory period
+% function spikes = getspiketrainpoissonrefractoryperiod(meanFiringRateHz, sampleRateHz, durationSec, refractoryPeriodMillisec)
 % % GETPOISSONSPIKETRAIN is a local function which produces a homogenous 
-% % poisson spike train. 
+% % poisson spike train with a refractory period. 
 % % 
 % % Parameters:
 % %   meanFiringRateHz -   
@@ -837,12 +949,18 @@ xlim([0 experimentDuration])
 %     % calculate mean ISI needed to acheive target spike rate
 %     meanISI = 1/meanFiringRateHz; % (seconds) 1 second / (10 spikes/second) = 0.1 seconds/spike = 0.1 second ISI
 % 
+%     % convert the refractory period into seconds
+%     refractoryPeriodSec = refractoryPeriodMillisec/1000;
+% 
 %     % simulate spike train
 %     exponentialSpikeTimes = exprnd(meanISI); % (seconds) spike times generated from an exponential distribution
 %     nSpike = 1;
 %     while exponentialSpikeTimes(end) < durationSec
 %         nextISI = exprnd(meanISI);
-%         exponentialSpikeTimes = [exponentialSpikeTimes (exponentialSpikeTimes(end) + nextISI)]; % (get next ISI
+%         while nextISI < refractoryPeriodSec
+%             nextISI = exprnd(meanISI);
+%         end
+%         exponentialSpikeTimes = [exponentialSpikeTimes (exponentialSpikeTimes(end) + nextISI)]; % (get next ISI)
 %         nSpike = nSpike + 1;
 %     end
 % 
@@ -850,42 +968,6 @@ xlim([0 experimentDuration])
 %     spikes = convertspiketimestospiketrain(exponentialSpikeTimes, sampleRateHz, durationSec);
 % 
 % end
-
-% Homogenous Poisson simulation with refractory period
-function spikes = getspiketrainpoissonrefractoryperiod(meanFiringRateHz, sampleRateHz, durationSec, refractoryPeriodMillisec)
-% GETPOISSONSPIKETRAIN is a local function which produces a homogenous 
-% poisson spike train with a refractory period. 
-% 
-% Parameters:
-%   meanFiringRateHz -   
-%   sampleRateHz - 
-%   durationSec - whole number - total amount of time to simulate (in seconds)
-% 
-% The function returns a vector of time bins, where the value of each bin
-% is 0 when the neuron does not spike and 1 when the neuron spikes. 
-
-    % calculate mean ISI needed to acheive target spike rate
-    meanISI = 1/meanFiringRateHz; % (seconds) 1 second / (10 spikes/second) = 0.1 seconds/spike = 0.1 second ISI
-    
-    % convert the refractory period into seconds
-    refractoryPeriodSec = refractoryPeriodMillisec/1000;
-
-    % simulate spike train
-    exponentialSpikeTimes = exprnd(meanISI); % (seconds) spike times generated from an exponential distribution
-    nSpike = 1;
-    while exponentialSpikeTimes(end) < durationSec
-        nextISI = exprnd(meanISI);
-        while nextISI < refractoryPeriodSec
-            nextISI = exprnd(meanISI);
-        end
-        exponentialSpikeTimes = [exponentialSpikeTimes (exponentialSpikeTimes(end) + nextISI)]; % (get next ISI)
-        nSpike = nSpike + 1;
-    end
-    
-    % convert the spike times into a spike train of 0's and 1's
-    spikes = convertspiketimestospiketrain(exponentialSpikeTimes, sampleRateHz, durationSec);
-
-end
 
 % Gamma spike train
 function spikes = getspiketraingammaprocess(meanFiringRateHz, k, sampleRateHz, durationSec, refractoryPeriodMillisec)
