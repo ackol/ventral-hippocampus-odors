@@ -41,26 +41,37 @@
 % Padmanabhan Lab, University of Rochester School of Medicine
 % PI contact email: krishnan_padmanabhan@urmc.rochester.edu
 % Script first created: September 13, 2024
-% Script last updated: April 01, 2026
-% Version 5.0
+% Script last updated: June 12, 2026
+% Version 6.0
 
 %% PART ONE: Load data and get parameters
 
 clear all
 clc
 
-% Manually specify Mouse ID
-mouseLabel = inputdlg('Enter animal ID','User input');
+dataType = "simulated"; % options: "simulated" or "recorded"
 
-% select base directory from which to navigate
-baseDir = uigetdir('',"Select base directory for this animal.");
+if strcmp(dataType,"recorded")
+    % Manually specify Mouse ID
+    mouseLabel = inputdlg('Enter animal ID','User input');
+    % select base directory from which to navigate
+    baseDir = uigetdir('',"Select base directory for this animal.");
+elseif strcmp(dataType,"simulated")
+    mouseLabel = inputdlg('Enter region ID (CA1, CA3, or DG):','User input');
+    % select base directory from which to navigate
+    baseDir = uigetdir('',"Select base directory for simulated data.");
+end
 
 % load odor delivery timing
 [file, path] = uigetfile(".mat","Select [IDxxx]_full_session_odor_sequence_matrix.mat",baseDir);
 load(fullfile(path,file));
 
 % load odorant identities
-[file, path] = uigetfile(".mat","Select .mat file containing PID data ([AK0xx]_D[x]_full_session_pid_data.mat.",path);
+if strcmp(dataType,"recorded")
+    [file, path] = uigetfile(".mat","Select .mat file containing PID data ([AK0xx]_D[x]_full_session_pid_data.mat.",path);
+elseif strcmp(dataType,"simulated")
+    [file, path] = uigetfile(".mat","Select .mat file containing PID data for one of the animals to retrieve odor names ([AK0xx]_D[x]_full_session_pid_data.mat.",path);
+end
 load(fullfile(path,file),"odorSetInfo");
 thisOdorSet = odorSetInfo.setLayout;
 if length(thisOdorSet)==1

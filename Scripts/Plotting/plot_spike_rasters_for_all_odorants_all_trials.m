@@ -4,8 +4,12 @@
 % trial (where M is the number of odorants on the panel). 
 %
 %   Inputs:
-%       USER MUST SPECIFY VIA UI:
-%       (1) mouseID
+%   USER MUST SPECIFIY IN-LINE:
+%       (1) dataType -- specify if you are processing recorded data from a 
+%           single animal or simulated data 
+%      
+%   USER MUST SPECIFY VIA UI:
+%       (1) mouseID (or regionID in case of simulated data)
 %       (2) base directory
 %       (3) [AK0xx]_spikes_grouped_by_odor_trial.mat
 %       (4) output path for figures
@@ -22,19 +26,27 @@
 % PI contact email: krishnan_padmanabhan@urmc.rochester.edu
 % Script first created: September 13, 2024 (originally part of 
 % align_sorted_spikes_to_odor_delivery.m from Versions 1.0-4.0)
-% Script last updated: March 31, 2026
-% Version 5.0.
+% Script last updated: June 12, 2026
+% Version 6.0.
 
 %% PART ONE: Load data and get parameters
 
 clear all
 clc
 
-% Manually specify Mouse ID
-mouseLabel = inputdlg('Enter animal ID','User input');
+% USER PARAMETER: IN-LINE
+dataType = "simulated"; % options: "simulated" or "recorded"
 
-% select base directory from which to navigate
-baseDir = uigetdir('',"Select base directory for this animal.");
+if strcmp(dataType,"recorded")
+    % Manually specify Mouse ID
+    mouseLabel = inputdlg('Enter animal ID','User input');
+    % select base directory from which to navigate
+    baseDir = uigetdir('',"Select base directory for this animal.");
+elseif strcmp(dataType,"simulated")
+    mouseLabel = inputdlg('Enter region ID (CA1, CA3, or DG):','User input');
+    % select base directory from which to navigate
+    baseDir = uigetdir('',"Select base directory for simulated data.");
+end
 
 % load spikes_grouped_by_odor_trial.mat variable file
 [file, path] = uigetfile(".mat","Select [AK0xx]_spikes_grouped_by_odor_trial.mat file for " + mouseLabel + ".",baseDir);
@@ -62,9 +74,13 @@ for iUnit = 1:nUnits
     disp("-----Processing unit #" + num2str(iUnit) + "------")
 
     f = figure('visible','off');
-    thisContactNum = unitInfo.("UNIT" + num2str(iUnit, "%.3d")).info.contactNumb;  %getContactNumber(iUnit);
     thisAnatomicalRegion = unitInfo.("UNIT" + num2str(iUnit, "%.3d")).info.anatomicLocation;
-    sgtitle({"Mouse " + mouseLabel, "sorted & curated", "Unit #" + num2str(iUnit), "Ch#" + thisContactNum + ", " + thisAnatomicalRegion})
+    if strcmp(dataType,"recorded")
+        thisContactNum = unitInfo.("UNIT" + num2str(iUnit, "%.3d")).info.contactNumb;  %getContactNumber(iUnit);
+        sgtitle({"Mouse " + mouseLabel, "sorted & curated", "Unit #" + num2str(iUnit), "Ch#" + thisContactNum + ", " + thisAnatomicalRegion})
+    elseif strcmp(dataType,"simulated")
+        sgtitle({"Region " + mouseLabel, "simulated", "Unit #" + num2str(iUnit) + ", " + thisAnatomicalRegion})
+    end
     set(gcf,'Position',[550 50 1500 1300])
     
     for iOdorant = 1:nOdors
