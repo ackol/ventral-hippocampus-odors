@@ -3,7 +3,7 @@
 % Anna Kolstad
 
 % First created: March 5, 2026
-% Last revised: May 26, 2026
+% Last revised: June 11, 2026
 
 %% Check in my data: 
 
@@ -32,21 +32,33 @@ experimentDuration = nTrials*(odorPresentationDuration + intertrialInterval); % 
 paddingDuration = recordingDuration - experimentDuration; % (seconds) total duration of extra recording time included in analysis
 nSamples = recordingDuration * sampleFreq; % total number of samples in recording
 
-% LOAD IN DATA FROM EMPIRICAL RECORDING, including for each neuron:
-% anatomic location
-% anatomic abbreviation
-% mean firing rate
-% RENAME the data structure to empiricalUnitDataStruct
+% The following section of code loads in data from the empirical recordings, which 
+% includes for each neuron:
+% - anatomic location
+% - anatomic abbreviation
+% - mean firing rate
+% and renames the data structure to empiricalUnitDataStruct
+
+brainRegion = "CA1"; % "CA1", "CA3", or "DG"
 
 % USER INPUT (1): Use UI to select file containing information about
 % units recorded in experiment (from a given brain region)
-[file, pathMice] = uigetfile('*.mat','Select CA1UnitData.mat file');
-load(fullfile(pathMice,file),"CA1UnitData","totalCA1Units");
+[file, pathMice] = uigetfile('*.mat','Select '+ brainRegion + 'UnitData.mat file');
+load(fullfile(pathMice,file),(brainRegion+"UnitData"),("total"+brainRegion+"Units"));
 
-empiricalUnitDataStruct = CA1UnitData;
-
-% get empirical statistics of neural firing (empirically determined)
-nUnits = totalCA1Units;
+if strcmp(brainRegion,"CA1")
+    empiricalUnitDataStruct = CA1UnitData;
+    % get statistics of neural firing (match to empirical data)
+    nUnits = totalCA1Units;
+elseif strcmp(brainRegion,"CA3")
+    empiricalUnitDataStruct = DGUnitData;
+    % get statistics of neural firing (match to empirical data)
+    nUnits = totalDGUnits;
+elseif strcmp(brainRegion,"DG")
+    empiricalUnitDataStruct = DGUnitData;
+    % get statistics of neural firing (match to empirical data)
+    nUnits = totalDGUnits;
+end
 
 % calculate mean firing rate for each unit
 % NOTE: IDEALLY THIS SHOULD BE OBTAINED FROM THE MEAN ITI SPIKE RATE, NOT
@@ -60,13 +72,29 @@ for iUnit = 1:nUnits
     meanFiringRates(iUnit,1) = nSpikes/durationSeconds; % (Hz) 
 end
 
+% Set additional parameters for refractory period simulation
 refractoryPeriodMillisec = 3; % (milliseconds)
+% Set additional parameters for gamma renewal process simulation
 k = 2; 
 
+% Extract the quality metric thresholds from the empirical data
+isiViolPercentAllowed = empiricalUnitDataStruct.qualityMetricSettings.ISI.minViol;
+
+%% Confirm that each simulation runs as expected
+% Simulate a short spike period without odor presentation 
+% Assess fano factor
+
+models = ["HomogenousPoisson", "PoissonWithRefractoryPeriod", "GammaRenewalKof2", "gamma with refractory period"];
+isiDurationCutoff = empiricalUnitDataStruct.qualityMetricSettings.ISI.timeWindow;
+
+useModel = models(1);
+
+% for debugging only
+useNUnits = 5;
 
 % create data structure for unit activity
 alignedUnitDataStruct = struct();
-for iUnit = 1:nUnits
+for iUnit = 1:useNUnits % nUnits
     alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).info.nSamples = nSamples;
     alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).info.nSpikes = nan; % populate later once spike train is generated
     alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).info.anatomicLocation = empiricalUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).info.anatomicLocation;
@@ -76,30 +104,25 @@ for iUnit = 1:nUnits
     alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).qualityMetrics = table; % this will be a 1x4 table with the column headings "ISIViolations", "NumbSpikes","SpikeRate","SNR". Note that in my experiments, I did not use either the NumbSpikes filter or the SNR filter, so these characteristic values are not computed for the unit.
 end
 
-%% Confirm that each simulation runs as expected
-% Simulate a short spike period without odor presentation 
-% Assess fano factor
-
-models = ["Homogenous Poisson", "Poisson with Refractory Period", "Gamma Renewal k = 2", "gamma with refractory period"];
-
-useModel = models(1);
-
-for iUnit = 1:nUnits
+tic
+for iUnit = 1:useNUnits %nUnits
     disp("Simulating firing of unit #" + iUnit + "...")
 
-    tic
     % Homogeneous Poisson Simulation
     if strcmp(useModel,models(1))
+        disp("Running a homogenous poisson simulation...")
         spikes = getspiketrainhomogeneouspoisson(meanFiringRates(iUnit,1), sampleFreq, recordingDuration); % get binary spike train
         [~, spikeIndices] = find(spikes==1); % get spike times (note: time is in units of sample points)    
         modelName = models(1);
     % Poisson Simulation with refractory period
     elseif strcmp(useModel, models(2))
+        disp("Running a poisson simulation with refractory period...")
         spikes = getspiketrainpoissonrefractoryperiod(meanFiringRates(iUnit,1), sampleFreq, recordingDuration, refractoryPeriodMillisec);
         [~, spikeIndices] = find(spikes==1); % get spike times (note: time is in units of sample points)
         modelName = models(2);
     % Gamma renewal process with k = 2
     elseif strcmp(useModel, models(3))
+        disp("Running a gamma renewal process simulation with k = " + k)
         spikes = getspiketraingammaprocess(meanFiringRates(iUnit,1), k, sampleFreq, recordingDuration, refractoryPeriodMillisec);
         [~, spikeIndices] = find(spikes==1); % get spike times (note: time is in units of sample points)
         modelName = models(3);
@@ -114,8 +137,6 @@ for iUnit = 1:nUnits
     binWidth = 1; % [milliseconds] chosen to match the hard-coded value used by processphyunitdata.m
     [isiCounts, isiBinEdges] = computeISIhistogram(trimmedSpikeIndices, binWidth, sampleFreq);
 
-    % NEED TO FIX THE BUG IN THE COMPUTEACGHISTOGRAM FUNCTION IN THE FIRST
-    % IF STATEMENT (SEE SCREENSHOT ON PHONE)
     % Compute the ACG histogram
     binWidth = 1; % [milliseconds] chosen to match the hard-coded value used by processphyunitdata.m
     maxLag = 25; % [milliseconds] the max time lag (in ms) to use in 
@@ -130,17 +151,15 @@ for iUnit = 1:nUnits
 
     % Update the SUMMARY DATA property
     alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData = summaryDataProp;
-
-
-
     
-    % Calculate the spike rate across the recording for this unit
-    spikeRate = nSpikes/recordingDuration; % [Hz] average spike rate across entire recording
-
     % Get quality metric values for this unit
     % Create matrix (1 unit x nMetrics) to store metric values for this unit 
     % (populate with NaNs if not calculated due to not enforcing)
     unitMetricValsMat = nan(1,4);
+
+    % Calculate the spike rate across the recording for this unit
+    spikeRate = nSpikes/recordingDuration; % [Hz] average spike rate across entire recording
+
     % ============================
     % Check for ISI violation
     % ============================ 
@@ -154,155 +173,406 @@ for iUnit = 1:nUnits
     violRatio = sum(isiTempHist.Values(1:isiDurationCutoff));
     
     % Set and store whether metric passes threshold
-    unitMetricValsMat(1,1) = violRatio*100;
-    
+    unitMetricValsMat(1,1) = violRatio*100; % [percent]
     unitMetricValsMat(1,2) = nan; % number of spikes not used in my analysis
-    unitMetricValsMat(iUnit,3) = spikeRate; % spike rate across the recording
+    unitMetricValsMat(1,3) = spikeRate; % spike rate across the recording
     unitMetricValsMat(1,4) = nan; % snr value not used in my analysis
 
     % Save spike train to data structure
     alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).info.nSpikes = nSpikes; % total number of simulated spikes
-    alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).eventData.spikeIndices = ""; % populate later once spike train is generated (based on the neuron its rate is modeled after)
-    alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.isiHistCArr = ""; % populate later once spike train is generated (based on the neuron its rate is modeled after)
-    alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.acgHistCArr = ""; % populate later once spike train is generated (based on the neuron its rate is modeled after)
-    alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).qualityMetrics = array2table(unitMetricValsMat(1,:), 'VariableNames', {'ISIViolations','NumbSpikes','SpikeRate','SNR'});; % this is a 1x4 table with the column headings "ISIViolations", "NumbSpikes","SpikeRate","SNR". Note that in my experiments, I did not use either the NumbSpikes filter or the SNR filter, so these characteristic values are not computed for the unit.
+    alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).eventData.spikeIndices = trimmedSpikeIndices; % populate later once spike train is generated (based on the neuron its rate is modeled after)
+    alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData = summaryDataProp; % populate later once spike train is generated (based on the neuron its rate is modeled after)
+    alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).qualityMetrics = array2table(unitMetricValsMat(1,:), 'VariableNames', {'ISIViolations','NumbSpikes','SpikeRate','SNR'}); % this is a 1x4 table with the column headings "ISIViolations", "NumbSpikes","SpikeRate","SNR". Note that in my experiments, I did not use either the NumbSpikes filter or the SNR filter, so these characteristic values are not computed for the unit. Note that I also did not filter out units that surpass the ISI violation threshold
 
 end
-
-
 toc
-%% Plot ISI and ACG histograms (in same way as data processing, per
-% processphyunitdata.m)
 
-% Compute the ISI histogram
-[isiCounts, isiBinEdges] = computeISIhistogram(trimmedSpikeIndices, 1, sampleFreq);
-tempISICounts = isiCounts;
-tempISIEdges = isiBinEdges;
+%% Plot summary figure for each unit (matching the format of the figures 
+% generated by processphyunitdata.m)
 
+% For each unit create a unit summary figure showing:
+% (1) [Blank]
+% (2) The ACG Histogram (-/+ 3ms violation threshold)
+% (3) The ISI (+ 3ms violation threshold)
+% (4) The Firing Rate across the entire recording
 
-    
+% Create data extraction specific folders if they don't exist already
+savePath = uigetdir();
+if ~isfolder(savePath + "\unit_summary_figures")
+    mkdir(savePath + "\unit_summary_figures");
+end
+saveFigPath = savePath + "\unit_summary_figures";
 
-
-% Compute the ACG histogram
-[acgCounts, acgBinEdges] = computeACGhistogram(trimmedSpikeIndices, 1, 25, sampleFreq);
-tempACGCounts = acgCounts;
-tempACGEdges = acgBinEdges;
-
-% Compute the spike rate using a 1-second long causal convolution signal
-tempSpikeIndices = spikeIndices;
-tempSpikeRate = histcounts(tempSpikeIndices, 'BinWidth', sampleFreq, 'BinLimits', [0,nSamples]);
-
-% Compute the Fano Factor by reshaping entire experiment into 1 second bins
-binnedSpikes = sum(reshape(spikes,sampleFreq,[])).';
-maxRate = max(binnedSpikes); % spikes per second
-nBins = size(binnedSpikes,1);
-fanoFactor = var(binnedSpikes)/mean(binnedSpikes);
-            
-%% Initialize the figure
-%unitSummaryFig = figure('Color','white', 'Units', 'normalized', 'Position', [0.3902    0.5616    0.3614    0.3669], 'Visible', 'on');
-unitSummaryFig = figure('Color','white', 'Units', 'normalized', 'Position', [0.3792    0.2989    0.3724    0.5725], 'Visible', 'on');
-probeID = "NeuroNexusA4x16";
-nUnits = 1;
-iUnit = 1;
 % Create a set of different colors to use for visual distinction of units
 colorMatrix = createpastelcolormatrix(nUnits, 1, 0);
-if strcmp(modelName,models(1))
-    sgtitle({modelName, "\lambda = " + meanFiringRate + "Hz; " + experimentDuration/60 + "min simulation, no odors"})
-elseif strcmp(modelName,models(2))
-    sgtitle({modelName, "\lambda = " + meanFiringRate + " Hz, RP = " + refractoryPeriodMillisec + " ms", experimentDuration/60 + "min simulation, no odors"})
+
+% Save the colorMatrix 
+save(fullfile(savePath, "unitColorMatrix.mat"), "colorMatrix");
+
+for iUnit = 1:5%nUnits
+
+    % Extract the ACG data
+    tempACGCounts = alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.acgHistCArr{1};
+    tempACGEdges = alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.acgHistCArr{2};
+
+    % Extract the ISI data
+    tempISICounts = alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.isiHistCArr{1};
+    tempISIEdges = alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.isiHistCArr{2};
+
+    % Extract the Spiking data
+    tempSpikeIndices = alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).eventData.spikeIndices;
+
+    % Compute the spike rate using a 1-second long causal convolution signal
+    tempSpikeRate = histcounts(tempSpikeIndices, 'BinWidth', 30000, 'BinLimits', [0,nSamples]);
+    % tempDeciSpikeRate = decimate(tempSpikeRate,10); % decimate for faster plotting
+    
+    % Initialize the figure
+    unitSummaryFig = figure('Color','white', 'Units', 'normalized', 'Position', [0.3902    0.5616    0.3614    0.3669], 'Visible', 'off');
+    
+    % ===========================
+    % Plot a blank average waveform plot
+    % ===========================
+    subplot(3,3,[1,4])
+    plot(1, 1, 'Color', [0.65, 0.65, 0.65, 0.5])
+    xlabel('Time (ms)')
+    ylabel('Voltage (\muV)')
+    xlim([-1,2])
+    title("UNIT" + num2str(iUnit, "%.3d"));
+    
+    % ===========================
+    % Plot the ACG histogram plot
+    % ===========================
+    subplot(3,3,2)
+    tempH = histogram('BinCounts', tempACGCounts, 'BinEdges', tempACGEdges, 'Normalization', 'probability');
+    tempH.FaceColor = colorMatrix(iUnit,:);
+    hold on
+    plot([-3,-3],[0,max(tempH.Values)+0.005], 'k--', 'LineWidth', 1)
+    plot([3,3],[0,max(tempH.Values)+0.005], 'k--', 'LineWidth', 1)
+    violRatio = sum(tempH.Values(tempH.BinEdges >= -3 & tempH.BinEdges <= 3))/sum(tempH.Values);
+    xlabel('Time lag (ms)')
+    ylabel('Probability')
+    title(num2str(violRatio*100) + "%")
+    
+    % ============================
+    % Plot the ISI histogram plot
+    % ============================
+    subplot(3,3,5)
+    isiTempHist = histogram('BinCounts', tempISICounts, 'BinEdges', tempISIEdges, 'Normalization', 'probability');
+    isiTempHist.FaceColor = colorMatrix(iUnit,:);
+    hold on
+    plot([3,3],[0,max(isiTempHist.Values)+0.005], 'k--', 'LineWidth', 1)
+    xlim([0,50])
+    violRatio = sum(isiTempHist.Values(1:3));
+    xlabel('Interspike interval (ms)')
+    ylabel('Probability')
+    title(num2str(violRatio*100) + "%")
+    
+    % =========================
+    % Plot the Spike Rate plot
+    % =========================
+    subplot(3,3,[7,8])
+    plot((1:numel(tempSpikeRate)), tempSpikeRate, 'k')
+    xlabel('Time (s)');
+    ylabel('Spike Rate (Hz)');
+    
+    % ====================================================================
+    % Plot blank subplots for spacing
+    % ====================================================================    
+    subplot(3,3,[3,6,9])
+
+    % Save the figure
+    drawnow; % Ensure figure is rendered even if not visible
+    outFilePath = saveFigPath + "\" + modelName + "_" + brainRegion + "_UNIT" + num2str(iUnit,"%.3d") + "_summary.png";
+    exportgraphics(unitSummaryFig, outFilePath, 'Resolution', 300);
+
+    close(unitSummaryFig);
+    % saveas(unitSummaryFig, saveFigPath + "\" + dataID + "_PHY_UNIT" + num2str(iUnit,"%.3d") + "_summary.png")
+    
 end
-% ===========================
-% Plot the spike count distribution and print fano factor
-% ===========================
-if strcmp(probeID, "NeuroNexusA4x16")
-    %subplot(3,3,[1,4])
+
+%% Plot summary figure for each simulated unit (using a new format)
+
+% For each unit create a unit summary figure showing:
+% (1) A histogram of the # of spikes per 1 second bin (w/ Fano Factor)
+% (2) The ACG Histogram (-/+ 3ms violation threshold)
+% (3) The ISI (+ 3ms violation threshold)
+% (4) The Firing Rate across the entire recording
+
+% Create data extraction specific folders if they don't exist already
+savePath = uigetdir();
+if ~isfolder(savePath + "\unit_summary_figures")
+    mkdir(savePath + "\unit_summary_figures");
+end
+saveFigPath = savePath + "\unit_summary_figures";
+
+% Create a set of different colors to use for visual distinction of units
+colorMatrix = createpastelcolormatrix(nUnits, 1, 0);
+
+% Save the colorMatrix 
+save(fullfile(savePath, "unitColorMatrix.mat"), "colorMatrix");
+
+for iUnit = 1:5%nUnits
+    
+    % Extract the Spiking data
+    tempSpikeIndices = alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).eventData.spikeIndices;
+    tempMeanFiringRate = meanFiringRates(iUnit);
+
+    % Compute the Fano Factor by reshaping entire experiment into 1 second bins
+    tempSpikes = zeros(1,nSamples);
+    tempSpikes(tempSpikeIndices) =  1;
+    tempBinnedSpikes = sum(reshape(tempSpikes,sampleFreq,[])).';
+    tempMaxRate = max(tempBinnedSpikes); % spikes per second
+    nBins = size(tempBinnedSpikes,1);
+    tempFanoFactor = var(tempBinnedSpikes)/mean(tempBinnedSpikes);
+
+    % Extract the ACG data
+    tempACGCounts = alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.acgHistCArr{1};
+    tempACGEdges = alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.acgHistCArr{2};
+
+    % Extract the ISI data
+    tempISICounts = alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.isiHistCArr{1};
+    tempISIEdges = alignedUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.isiHistCArr{2};
+
+    % Compute the spike rate using a 1-second long causal convolution signal
+    tempSpikeRate = histcounts(tempSpikeIndices, 'BinWidth', 30000, 'BinLimits', [0,nSamples]);
+    % tempDeciSpikeRate = decimate(tempSpikeRate,10); % decimate for faster plotting
+    
+    % Initialize the figure
+    unitSummaryFig = figure('Color','white', 'Units', 'normalized', 'Position', [0.3792    0.2989    0.3724    0.5725], 'Visible', 'on');
+    
+    if strcmp(modelName,models(1))
+        sgtitle({"Homogenous Poisson", "No odors", "UNIT" + num2str(iUnit, "%.3d") + ", \lambda = " + tempMeanFiringRate + "Hz "})
+    elseif strcmp(modelName,models(2))
+        sgtitle({"Poisson with Refractory Period", "No odors", "UNIT" + num2str(iUnit, "%.3d") + ", \lambda = " + tempMeanFiringRate + " Hz, RP = " + refractoryPeriodMillisec + " ms"})
+    end
+
+    % ===========================
+    % Plot the spike count distribution and print fano factor
+    % ===========================
     subplot(4,2,[1,3])
-elseif strcmp(probeID, "NeuroNexusBuzsaki64spL")
-    subplot(3,4,2)
-end
-tempH = histogram(binnedSpikes);
-tempH.FaceColor = colorMatrix(iUnit,:);
-hold on
-xlabel('spike count')
-ylabel('number of 1 second bins')
-title({"Fano factor: " + fanoFactor})
-xValues = 0:maxRate;
-poissonDist = poisspdf(xValues,meanFiringRate);
-poissonSum = poisscdf(maxRate,meanFiringRate);
-plot(xValues,poissonDist*poissonSum*nBins,'LineWidth',2)
-legend("simulated","Poisson PDF")
-hold off
+    tempH = histogram(tempBinnedSpikes);
+    tempH.FaceColor = colorMatrix(iUnit,:);
+    hold on
+    xlabel('spike count')
+    ylabel('number of 1 second bins')
+    title({"Fano factor: " + tempFanoFactor})
+    xValues = 0:tempMaxRate;
+    poissonDist = poisspdf(xValues,tempMeanFiringRate);
+    poissonSum = poisscdf(tempMaxRate,tempMeanFiringRate);
+    plot(xValues,poissonDist*poissonSum*nBins,'LineWidth',2)
+    legend("simulated","Poisson PDF")
+    hold off
 
-% ===========================
-% Plot the ACG histogram plot
-% ===========================
-if strcmp(probeID, "NeuroNexusA4x16")
-    %subplot(3,3,2)
+    % ===========================
+    % Plot the ACG histogram plot
+    % ===========================
     subplot(4,2,2)
-elseif strcmp(probeID, "NeuroNexusBuzsaki64spL")
-    subplot(3,4,2)
-end
-tempH = histogram('BinCounts', tempACGCounts, 'BinEdges', tempACGEdges, 'Normalization', 'probability');
-tempH.FaceColor = colorMatrix(iUnit,:);
-hold on
-plot([-3,-3],[0,max(tempH.Values)+0.005], 'k--', 'LineWidth', 1)
-plot([3,3],[0,max(tempH.Values)+0.005], 'k--', 'LineWidth', 1)
-violRatio = sum(tempH.Values(tempH.BinEdges >= -3 & tempH.BinEdges <= 3))/sum(tempH.Values);
-xlabel('Time lag (ms)')
-ylabel('Probability')
-title("ACG violations: " + num2str(violRatio*100) + "%")
-% =========================
-% Plot the ISI histogram plot
-% ============================
-if strcmp(probeID, "NeuroNexusA4x16")
-    %subplot(3,3,5)
+    tempH = histogram('BinCounts', tempACGCounts, 'BinEdges', tempACGEdges, 'Normalization', 'probability');
+    tempH.FaceColor = colorMatrix(iUnit,:);
+    hold on
+    plot([-3,-3],[0,max(tempH.Values)+0.005], 'k--', 'LineWidth', 1)
+    plot([3,3],[0,max(tempH.Values)+0.005], 'k--', 'LineWidth', 1)
+    violRatio = sum(tempH.Values(tempH.BinEdges >= -3 & tempH.BinEdges <= 3))/sum(tempH.Values);
+    xlabel('Time lag (ms)')
+    ylabel('Probability')
+    title("ACG violations: " + num2str(violRatio*100) + "%")
+    
+    % ============================
+    % Plot the ISI histogram plot
+    % ============================
     subplot(4,2,4)
-elseif strcmp(probeID, "NeuroNexusBuzsaki64spL")
-    subplot(3,4,6)
-end
-isiTempHist = histogram('BinCounts', tempISICounts, 'BinEdges', tempISIEdges, 'Normalization', 'probability');
-isiTempHist.FaceColor = colorMatrix(iUnit,:);
-hold on
-plot([3,3],[0,max(isiTempHist.Values)+0.005], 'k--', 'LineWidth', 1)
-xlim([0,50])
-violRatio = sum(isiTempHist.Values(1:3));
-xlabel('Interspike interval (ms)')
-ylabel('Probability')
-title("ISI violations: " + num2str(violRatio*100) + "%")
-% =========================
-% Plot the first N seconds of the raster plot
-% =========================
-if strcmp(probeID, "NeuroNexusA4x16")
-    %subplot(3,3,5)
+    isiTempHist = histogram('BinCounts', tempISICounts, 'BinEdges', tempISIEdges, 'Normalization', 'probability');
+    isiTempHist.FaceColor = colorMatrix(iUnit,:);
+    hold on
+    plot([3,3],[0,max(isiTempHist.Values)+0.005], 'k--', 'LineWidth', 1)
+    xlim([0,50])
+    violRatio = sum(isiTempHist.Values(1:3));
+    xlabel('Interspike interval (ms)')
+    ylabel('Probability')
+    if violRatio*100 < isiViolPercentAllowed
+        title("ISI violations: " + num2str(violRatio*100) + "%   < " + num2str(isiViolPercentAllowed) + "%")
+    else
+        title("ISI violations: " + num2str(violRatio*100) + "%   > " + num2str(isiViolPercentAllowed) + "%",'Color','r')
+    end
+
+    % =========================
+    % Plot a middle N seconds of the raster plot
+    % =========================
     subplot(4,2,[5,6])
-elseif strcmp(probeID, "NeuroNexusBuzsaki64spL")
-    subplot(3,4,6)
-end
-nSeconds = 5;
-firstNSecondSpikes = spikeIndices(spikeIndices < nSeconds*sampleFreq);
-scatter(firstNSecondSpikes/sampleFreq,1,'|k','LineWidth',2)
-title("First " + nSeconds + " second(s) of raster plot")
-xlabel('Time (s)')
-ylabel('spike (yes/no)')
-ylim([0.9 1.1])
-xlim([0 nSeconds])
-yticklabels([])
-yticks(1)
-% =========================
-% Plot the Spike Rate plot
-% =========================
-if strcmp(probeID, "NeuroNexusA4x16")
-    %subplot(3,3,[7,8])
+    nSeconds = 5;
+    startTime = 10; % seconds
+    middleNSecondSpikes = tempSpikeIndices(tempSpikeIndices < (startTime + nSeconds)*sampleFreq);
+    middleNSecondSpikes = middleNSecondSpikes(middleNSecondSpikes > startTime*sampleFreq);
+    scatter(middleNSecondSpikes/sampleFreq,1,'|k','LineWidth',2)
+    title(nSeconds + " second(s) of raster plot")
+    xlabel('Time (s)')
+    ylabel('spike (yes/no)')
+    ylim([0.9 1.1])
+    xlim(startTime + [0 nSeconds])
+    yticklabels([])
+    yticks(1)
+
+    % =========================
+    % Plot the Spike Rate plot
+    % =========================
     subplot(4,2,[7,8])
-elseif strcmp(probeID, "NeuroNexusBuzsaki64spL")
-    subplot(3,4,[9,10])
+    plot((1:numel(tempSpikeRate))./60, tempSpikeRate, 'k')
+    xlabel('Time (min)');
+    ylabel('Spike Rate (Hz)');
+    xlim([0 experimentDuration/60])
+
+    % Save the figure
+    drawnow; % Ensure figure is rendered even if not visible
+    outFilePath = saveFigPath + "\" + modelName + "_" + brainRegion + "_UNIT" + num2str(iUnit,"%.3d") + "_summary.png";
+    exportgraphics(unitSummaryFig, outFilePath, 'Resolution', 300);
+
+    close(unitSummaryFig);
+    % saveas(unitSummaryFig, saveFigPath + "\" + dataID + "_PHY_UNIT" + num2str(iUnit,"%.3d") + "_summary.png")
+    
 end
-plot((1:numel(tempSpikeRate)), tempSpikeRate, 'k')
-xlabel('Time (s)');
-ylabel('Spike Rate (Hz)');
-xlim([0 experimentDuration])
 
+%% Plot summary figure for each empirical unit (using a new format)
 
+% For each unit create a unit summary figure showing:
+% (1) A histogram of the # of spikes per 1 second bin (w/ Fano Factor)
+% (2) The ACG Histogram (-/+ 3ms violation threshold)
+% (3) The ISI (+ 3ms violation threshold)
+% (4) The Firing Rate across the entire recording
+
+% Create data extraction specific folders if they don't exist already
+savePath = uigetdir();
+if ~isfolder(savePath + "\unit_summary_figures")
+    mkdir(savePath + "\unit_summary_figures");
+end
+saveFigPath = savePath + "\unit_summary_figures";
+
+% Create a set of different colors to use for visual distinction of units
+colorMatrix = createpastelcolormatrix(nUnits, 1, 0);
+
+% Save the colorMatrix 
+save(fullfile(savePath, "unitColorMatrix.mat"), "colorMatrix");
+
+for iUnit = 1:5%nUnits
+    
+    % Extract the Spiking data
+    tempSpikeIndices = empiricalUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).eventData.spikeIndices;
+    tempMeanFiringRate = meanFiringRates(iUnit);
+
+    % Compute the Fano Factor by reshaping entire experiment into 1 second bins
+    tempSpikes = zeros(1,nSamples);
+    tempSpikes(tempSpikeIndices) =  1;
+    tempBinnedSpikes = sum(reshape(tempSpikes,sampleFreq,[])).';
+    tempMaxRate = max(tempBinnedSpikes); % spikes per second
+    nBins = size(tempBinnedSpikes,1);
+    tempFanoFactor = var(tempBinnedSpikes)/mean(tempBinnedSpikes);
+
+    % Extract the ACG data
+    tempACGCounts = empiricalUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.acgHistCArr{1};
+    tempACGEdges = empiricalUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.acgHistCArr{2};
+
+    % Extract the ISI data
+    tempISICounts = empiricalUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.isiHistCArr{1};
+    tempISIEdges = empiricalUnitDataStruct.("UNIT" + num2str(iUnit, "%.3d")).summaryData.isiHistCArr{2};
+
+    % Compute the spike rate using a 1-second long causal convolution signal
+    tempSpikeRate = histcounts(tempSpikeIndices, 'BinWidth', 30000, 'BinLimits', [0,nSamples]);
+    % tempDeciSpikeRate = decimate(tempSpikeRate,10); % decimate for faster plotting
+    
+    % Initialize the figure
+    unitSummaryFig = figure('Color','white', 'Units', 'normalized', 'Position', [0.3792    0.2989    0.3724    0.5725], 'Visible', 'on');
+    
+    if strcmp(modelName,models(1))
+        sgtitle({"Homogenous Poisson", "No odors", "UNIT" + num2str(iUnit, "%.3d") + ", \lambda = " + tempMeanFiringRate + "Hz "})
+    elseif strcmp(modelName,models(2))
+        sgtitle({"Poisson with Refractory Period", "No odors", "UNIT" + num2str(iUnit, "%.3d") + ", \lambda = " + tempMeanFiringRate + " Hz, RP = " + refractoryPeriodMillisec + " ms"})
+    end
+
+    % ===========================
+    % Plot the spike count distribution and print fano factor
+    % ===========================
+    subplot(4,2,[1,3])
+    tempH = histogram(tempBinnedSpikes);
+    tempH.FaceColor = colorMatrix(iUnit,:);
+    hold on
+    xlabel('spike count')
+    ylabel('number of 1 second bins')
+    title({"Fano factor: " + tempFanoFactor})
+    xValues = 0:tempMaxRate;
+    poissonDist = poisspdf(xValues,tempMeanFiringRate);
+    poissonSum = poisscdf(tempMaxRate,tempMeanFiringRate);
+    plot(xValues,poissonDist*poissonSum*nBins,'LineWidth',2)
+    legend("simulated","Poisson PDF")
+    hold off
+
+    % ===========================
+    % Plot the ACG histogram plot
+    % ===========================
+    subplot(4,2,2)
+    tempH = histogram('BinCounts', tempACGCounts, 'BinEdges', tempACGEdges, 'Normalization', 'probability');
+    tempH.FaceColor = colorMatrix(iUnit,:);
+    hold on
+    plot([-3,-3],[0,max(tempH.Values)+0.005], 'k--', 'LineWidth', 1)
+    plot([3,3],[0,max(tempH.Values)+0.005], 'k--', 'LineWidth', 1)
+    violRatio = sum(tempH.Values(tempH.BinEdges >= -3 & tempH.BinEdges <= 3))/sum(tempH.Values);
+    xlabel('Time lag (ms)')
+    ylabel('Probability')
+    title("ACG violations: " + num2str(violRatio*100) + "%")
+    
+    % ============================
+    % Plot the ISI histogram plot
+    % ============================
+    subplot(4,2,4)
+    isiTempHist = histogram('BinCounts', tempISICounts, 'BinEdges', tempISIEdges, 'Normalization', 'probability');
+    isiTempHist.FaceColor = colorMatrix(iUnit,:);
+    hold on
+    plot([3,3],[0,max(isiTempHist.Values)+0.005], 'k--', 'LineWidth', 1)
+    xlim([0,50])
+    violRatio = sum(isiTempHist.Values(1:3));
+    xlabel('Interspike interval (ms)')
+    ylabel('Probability')
+    if violRatio*100 < isiViolPercentAllowed
+        title("ISI violations: " + num2str(violRatio*100) + "%   < " + num2str(isiViolPercentAllowed) + "%")
+    else
+        title("ISI violations: " + num2str(violRatio*100) + "%   > " + num2str(isiViolPercentAllowed) + "%",'Color','r')
+    end
+
+    % =========================
+    % Plot a middle N seconds of the raster plot
+    % =========================
+    subplot(4,2,[5,6])
+    nSeconds = 5;
+    startTime = 10; % seconds
+    middleNSecondSpikes = tempSpikeIndices(tempSpikeIndices < (startTime + nSeconds)*sampleFreq);
+    middleNSecondSpikes = middleNSecondSpikes(middleNSecondSpikes > startTime*sampleFreq);
+    scatter(middleNSecondSpikes/sampleFreq,1,'|k','LineWidth',2)
+    title(nSeconds + " second(s) of raster plot")
+    xlabel('Time (s)')
+    ylabel('spike (yes/no)')
+    ylim([0.9 1.1])
+    xlim(startTime + [0 nSeconds])
+    yticklabels([])
+    yticks(1)
+
+    % =========================
+    % Plot the Spike Rate plot
+    % =========================
+    subplot(4,2,[7,8])
+    plot((1:numel(tempSpikeRate))./60, tempSpikeRate, 'k')
+    xlabel('Time (min)');
+    ylabel('Spike Rate (Hz)');
+    xlim([0 experimentDuration/60])
+
+    % Save the figure
+    drawnow; % Ensure figure is rendered even if not visible
+    outFilePath = saveFigPath + "\" + modelName + "_" + brainRegion + "_UNIT" + num2str(iUnit,"%.3d") + "_summary.png";
+    exportgraphics(unitSummaryFig, outFilePath, 'Resolution', 300);
+
+    close(unitSummaryFig);
+    % saveas(unitSummaryFig, saveFigPath + "\" + dataID + "_PHY_UNIT" + num2str(iUnit,"%.3d") + "_summary.png")
+    
+end
+
+          
 
 %% Define tuning curve properties
 
